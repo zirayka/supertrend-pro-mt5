@@ -50,18 +50,24 @@ async def get_status():
 @api_router.get("/connection", response_model=MT5Connection)
 async def get_connection_status(mt5: MT5ConnectionManager = Depends(get_mt5_manager)):
     """Get MT5 connection status"""
-    return await mt5.get_connection_status()
+    try:
+        return await mt5.get_connection_status()
+    except Exception as e:
+        logger.error(f"Error getting connection status: {e}")
+        return MT5Connection(is_connected=False, connection_type="error")
 
 @api_router.get("/pairs", response_model=List[CurrencyPair])
 async def get_currency_pairs(mt5: MT5ConnectionManager = Depends(get_mt5_manager)):
     """Get available currency pairs from MT5 account"""
-    pairs = await mt5.get_available_pairs()
-    if not pairs:
-        raise HTTPException(
-            status_code=503, 
-            detail="No trading pairs available. Please ensure MT5 Terminal is running and connected."
-        )
-    return pairs
+    try:
+        pairs = await mt5.get_available_pairs()
+        if not pairs:
+            logger.warning("No trading pairs available from MT5")
+            return []
+        return pairs
+    except Exception as e:
+        logger.error(f"Error getting currency pairs: {e}")
+        return []
 
 @api_router.get("/tick")
 async def get_current_tick(
@@ -69,14 +75,17 @@ async def get_current_tick(
     mt5: MT5ConnectionManager = Depends(get_mt5_manager)
 ):
     """Get current tick data from MT5"""
-    tick = await mt5.get_current_tick(symbol)
-    if tick:
-        return tick.dict()
-    
-    raise HTTPException(
-        status_code=404, 
-        detail=f"No tick data available for {symbol}. Please check MT5 connection and symbol availability."
-    )
+    try:
+        tick = await mt5.get_current_tick(symbol)
+        if tick:
+            return tick.dict()
+        
+        logger.warning(f"No tick data available for {symbol}")
+        return {"error": f"No tick data available for {symbol}"}
+        
+    except Exception as e:
+        logger.error(f"Error getting tick data for {symbol}: {e}")
+        return {"error": f"Failed to get tick data: {str(e)}"}
 
 @api_router.get("/market-data", response_model=List[MarketData])
 async def get_market_data(
@@ -86,23 +95,33 @@ async def get_market_data(
     mt5: MT5ConnectionManager = Depends(get_mt5_manager)
 ):
     """Get market data from MT5"""
-    data = await mt5.get_market_data(symbol, timeframe, count)
-    if not data:
-        raise HTTPException(
-            status_code=404,
-            detail=f"No market data available for {symbol} on {timeframe} timeframe."
-        )
-    return data
+    try:
+        data = await mt5.get_market_data(symbol, timeframe, count)
+        if not data:
+            logger.warning(f"No market data available for {symbol} on {timeframe}")
+            return []
+        return data
+    except Exception as e:
+        logger.error(f"Error getting market data: {e}")
+        return []
 
 @api_router.get("/positions")
 async def get_positions(mt5: MT5ConnectionManager = Depends(get_mt5_manager)):
     """Get open positions from MT5 account"""
-    return await mt5.get_positions()
+    try:
+        return await mt5.get_positions()
+    except Exception as e:
+        logger.error(f"Error getting positions: {e}")
+        return []
 
 @api_router.get("/orders")
 async def get_orders(mt5: MT5ConnectionManager = Depends(get_mt5_manager)):
     """Get pending orders from MT5 account"""
-    return await mt5.get_orders()
+    try:
+        return await mt5.get_orders()
+    except Exception as e:
+        logger.error(f"Error getting orders: {e}")
+        return []
 
 @api_router.post("/order")
 async def place_order(
@@ -173,10 +192,10 @@ async def calculate_supertrend(
         market_data = await mt5.get_market_data(symbol, timeframe, 100)
         
         if not market_data:
-            raise HTTPException(
-                status_code=404,
-                detail=f"No market data available for {symbol} on {timeframe} timeframe"
-            )
+            return {
+                "status": "no_data",
+                "message": f"No market data available for {symbol} on {timeframe} timeframe"
+            }
         
         # Add data to calculator
         for data_point in market_data:
@@ -200,8 +219,6 @@ async def calculate_supertrend(
             "timestamp": datetime.now().isoformat()
         }
         
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(f"Error calculating SuperTrend: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -224,8 +241,7 @@ async def test_connection(mt5: MT5ConnectionManager = Depends(get_mt5_manager)):
             "server_connection": {
                 "success": connection.server is not None,
                 "message": f"Connected to {connection.server}" if connection.server else "No server information"
-            },
-            "overall": connection.is_connected
+            }
         }
         
         # Additional tests for direct connection
@@ -235,7 +251,7 @@ async def test_connection(mt5: MT5ConnectionManager = Depends(get_mt5_manager)):
                 tick = await mt5.get_current_tick("EURUSD")
                 test_results["tick_data"] = {
                     "success": tick is not None,
-                    "message": f"Tick data available for {tick.symbol}: {tick.bid}/{tick.ask}" if tick else "No tick data"
+                    "message": f"Tick data available for EURUSD: {tick.bid}/{tick.ask}" if tick else "No tick data"
                 }
                 
                 # Test getting pairs
@@ -265,9 +281,12 @@ async def test_connection(mt5: MT5ConnectionManager = Depends(get_mt5_manager)):
                     "message": f"Error in detailed tests: {str(e)}"
                 }
         
+        overall_success = all(test["success"] for test in test_results.values())
+        
         return {
             "status": "success",
             "results": test_results,
+            "overall": overall_success,
             "connection_type": connection.connection_type,
             "account": connection.account,
             "server": connection.server,
@@ -303,7 +322,16 @@ async def get_dashboard_state(
         
     except Exception as e:
         logger.error(f"Error getting dashboard state: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        # Return default state on error
+        return DashboardState(
+            selected_pair="EURUSD",
+            is_running=True,
+            config=SuperTrendConfig(),
+            connection=MT5Connection(is_connected=False),
+            available_pairs=[],
+            signals=[],
+            market_data=[]
+        )
 
 @api_router.post("/reconnect")
 async def reconnect_mt5(mt5: MT5ConnectionManager = Depends(get_mt5_manager)):
@@ -333,10 +361,19 @@ async def get_account_summary(mt5: MT5ConnectionManager = Depends(get_mt5_manage
         connection = await mt5.get_connection_status()
         
         if not connection.is_connected:
-            raise HTTPException(
-                status_code=503,
-                detail="MT5 Terminal not connected. Please start MT5 and log into your account."
-            )
+            return {
+                "error": "MT5 Terminal not connected",
+                "message": "Please start MT5 and log into your account",
+                "account": {},
+                "trading": {},
+                "positions": [],
+                "orders": [],
+                "connection_status": {
+                    "type": connection.connection_type,
+                    "last_update": None
+                },
+                "timestamp": datetime.now().isoformat()
+            }
         
         positions = await mt5.get_positions()
         orders = await mt5.get_orders()
@@ -375,8 +412,14 @@ async def get_account_summary(mt5: MT5ConnectionManager = Depends(get_mt5_manage
             "timestamp": datetime.now().isoformat()
         }
         
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(f"Error getting account summary: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        return {
+            "error": str(e),
+            "account": {},
+            "trading": {},
+            "positions": [],
+            "orders": [],
+            "connection_status": {"type": "error", "last_update": None},
+            "timestamp": datetime.now().isoformat()
+        }

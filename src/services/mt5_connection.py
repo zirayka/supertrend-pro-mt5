@@ -35,17 +35,31 @@ class MT5ConnectionManager:
         self.positions: List[Dict] = []
         self.orders: List[Dict] = []
         
+        # Connection stability tracking
+        self.connection_attempts = 0
+        self.max_connection_attempts = 5
+        self.connection_retry_delay = 10  # seconds
+        
     async def initialize(self):
-        """Initialize MT5 direct connection"""
+        """Initialize MT5 direct connection with retry logic"""
         logger.info("Initializing MT5 direct connection...")
         
-        # Try direct MT5 connection
-        if await self._try_direct_connection():
-            await self._notify_subscribers("connection", self.connection_status.dict())
-            return
+        # Try direct MT5 connection with retries
+        for attempt in range(self.max_connection_attempts):
+            self.connection_attempts = attempt + 1
+            
+            logger.info(f"MT5 connection attempt {self.connection_attempts}/{self.max_connection_attempts}")
+            
+            if await self._try_direct_connection():
+                await self._notify_subscribers("connection", self.connection_status.dict())
+                return
+            
+            if attempt < self.max_connection_attempts - 1:
+                logger.warning(f"Connection attempt {self.connection_attempts} failed, retrying in {self.connection_retry_delay} seconds...")
+                await asyncio.sleep(self.connection_retry_delay)
         
-        # If direct connection fails, log error and exit
-        logger.error("Failed to establish MT5 connection")
+        # If all attempts failed
+        logger.error("Failed to establish MT5 connection after all attempts")
         logger.error("Please ensure:")
         logger.error("   1. MetaTrader 5 Terminal is running")
         logger.error("   2. You are logged into a trading account")
@@ -73,7 +87,7 @@ class MT5ConnectionManager:
                 # Start monitoring
                 await self.direct_connection.start_monitoring()
                 
-                logger.info("Direct MT5 connection established")
+                logger.info("Direct MT5 connection established successfully")
                 return True
             
         except Exception as e:
@@ -104,6 +118,11 @@ class MT5ConnectionManager:
             self.market_data = market_data
             
             logger.info(f"Loaded {len(self.available_pairs)} pairs, {len(self.positions)} positions, {len(self.orders)} orders")
+            
+            # Notify subscribers about loaded data
+            await self._notify_subscribers("symbols", self.available_pairs)
+            await self._notify_subscribers("positions", self.positions)
+            await self._notify_subscribers("orders", self.orders)
             
         except Exception as e:
             logger.error(f"Error loading direct connection data: {e}")
@@ -165,7 +184,9 @@ class MT5ConnectionManager:
     async def get_available_pairs(self) -> List[CurrencyPair]:
         """Get available currency pairs"""
         if self.connection_status.connection_type == "direct" and self.direct_connection:
-            return await self.direct_connection.get_available_pairs()
+            pairs = await self.direct_connection.get_available_pairs()
+            self.available_pairs = pairs  # Cache the pairs
+            return pairs
         return self.available_pairs
     
     async def get_current_tick(self, symbol: str = "EURUSD") -> Optional[MT5Tick]:
@@ -183,13 +204,17 @@ class MT5ConnectionManager:
     async def get_positions(self) -> List[Dict]:
         """Get open positions"""
         if self.connection_status.connection_type == "direct" and self.direct_connection:
-            return await self.direct_connection.get_positions()
+            positions = await self.direct_connection.get_positions()
+            self.positions = positions  # Cache the positions
+            return positions
         return self.positions
     
     async def get_orders(self) -> List[Dict]:
         """Get pending orders"""
         if self.connection_status.connection_type == "direct" and self.direct_connection:
-            return await self.direct_connection.get_orders()
+            orders = await self.direct_connection.get_orders()
+            self.orders = orders  # Cache the orders
+            return orders
         return self.orders
     
     async def place_order(self, symbol: str, order_type: str, volume: float, price: float = None, 
