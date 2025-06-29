@@ -151,15 +151,15 @@ class SuperTrendDashboard {
     
     setupEventListeners() {
         // Enhanced control buttons
-        document.getElementById('play-pause-btn').addEventListener('click', () => {
+        document.getElementById('play-pause-btn')?.addEventListener('click', () => {
             this.toggleRunning();
         });
         
-        document.getElementById('reset-btn').addEventListener('click', () => {
+        document.getElementById('reset-btn')?.addEventListener('click', () => {
             this.resetData();
         });
         
-        document.getElementById('settings-btn').addEventListener('click', () => {
+        document.getElementById('settings-btn')?.addEventListener('click', () => {
             this.toggleSettings();
         });
         
@@ -167,12 +167,12 @@ class SuperTrendDashboard {
             this.toggleSettings();
         });
         
-        document.getElementById('refresh-connection').addEventListener('click', () => {
+        document.getElementById('refresh-connection')?.addEventListener('click', () => {
             this.refreshConnection();
         });
         
         // Connection test modal
-        document.getElementById('connection-test-btn').addEventListener('click', () => {
+        document.getElementById('connection-test-btn')?.addEventListener('click', () => {
             this.showConnectionTestModal();
         });
         
@@ -185,11 +185,11 @@ class SuperTrendDashboard {
         });
         
         // Pair management
-        document.getElementById('pair-selector').addEventListener('change', (e) => {
+        document.getElementById('pair-selector')?.addEventListener('change', (e) => {
             this.changeSymbol(e.target.value);
         });
         
-        document.getElementById('pair-search').addEventListener('input', (e) => {
+        document.getElementById('pair-search')?.addEventListener('input', (e) => {
             this.filterPairs(e.target.value);
         });
         
@@ -269,6 +269,191 @@ class SuperTrendDashboard {
                 this.updateToggleUI(rsiToggle);
             });
         }
+    }
+    
+    // Missing method implementations
+    updateRangeSliderBackground(element) {
+        const value = element.value;
+        const min = element.min || 0;
+        const max = element.max || 100;
+        const percentage = ((value - min) / (max - min)) * 100;
+        
+        element.style.setProperty('--value', `${percentage}%`);
+    }
+    
+    updateToggleUI(toggle) {
+        const wrapper = toggle.parentElement;
+        if (toggle.checked) {
+            wrapper.classList.add('bg-primary-500');
+            wrapper.classList.remove('bg-gray-600');
+        } else {
+            wrapper.classList.add('bg-gray-600');
+            wrapper.classList.remove('bg-primary-500');
+        }
+    }
+    
+    updateCategoryFilterUI(activeButton) {
+        // Remove active state from all buttons
+        document.querySelectorAll('.category-filter').forEach(btn => {
+            btn.classList.remove('active', 'bg-primary-500', 'text-white');
+            btn.classList.add('glass', 'text-gray-300');
+        });
+        
+        // Add active state to clicked button
+        activeButton.classList.add('active', 'bg-primary-500', 'text-white');
+        activeButton.classList.remove('glass', 'text-gray-300');
+    }
+    
+    showConnectionTestModal() {
+        const modal = document.getElementById('connection-test-modal');
+        if (modal) {
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+    }
+    
+    hideConnectionTestModal() {
+        const modal = document.getElementById('connection-test-modal');
+        if (modal) {
+            modal.classList.add('hidden');
+            modal.classList.remove('flex');
+        }
+    }
+    
+    async runConnectionTest() {
+        const resultsDiv = document.getElementById('test-results');
+        if (!resultsDiv) return;
+        
+        resultsDiv.innerHTML = `
+            <div class="text-center py-8">
+                <div class="animate-spin w-8 h-8 border-2 border-primary-500 border-t-transparent rounded-full mx-auto mb-4"></div>
+                <p class="text-gray-400">Testing MT5 connection...</p>
+            </div>
+        `;
+        
+        try {
+            const response = await fetch('/api/test-connection', { method: 'POST' });
+            const result = await response.json();
+            
+            let html = '<div class="space-y-3">';
+            
+            for (const [testName, testResult] of Object.entries(result.results)) {
+                const icon = testResult.success ? 'check-circle' : 'x-circle';
+                const color = testResult.success ? 'text-primary-500' : 'text-red-500';
+                
+                html += `
+                    <div class="flex items-center justify-between p-3 glass rounded-lg">
+                        <div class="flex items-center space-x-3">
+                            <i data-lucide="${icon}" class="w-5 h-5 ${color}"></i>
+                            <span class="text-white font-medium">${testName.replace('_', ' ').toUpperCase()}</span>
+                        </div>
+                        <span class="text-sm text-gray-400">${testResult.success ? 'PASS' : 'FAIL'}</span>
+                    </div>
+                    <p class="text-sm text-gray-400 ml-8">${testResult.message}</p>
+                `;
+            }
+            
+            html += '</div>';
+            resultsDiv.innerHTML = html;
+            
+            lucide.createIcons();
+            
+        } catch (error) {
+            resultsDiv.innerHTML = `
+                <div class="text-center py-8">
+                    <i data-lucide="x-circle" class="w-12 h-12 text-red-500 mx-auto mb-4"></i>
+                    <p class="text-red-400 font-medium">Connection test failed</p>
+                    <p class="text-gray-400 text-sm">${error.message}</p>
+                </div>
+            `;
+            lucide.createIcons();
+        }
+    }
+    
+    clearAlerts() {
+        const alertsContent = document.getElementById('alerts-content');
+        if (alertsContent) {
+            alertsContent.innerHTML = `
+                <div class="text-center text-gray-400 py-8">
+                    <i data-lucide="bell" class="w-12 h-12 mx-auto mb-3 opacity-50"></i>
+                    <p class="font-medium">No signals yet</p>
+                    <p class="text-sm">Trading signals will appear here when conditions are met</p>
+                </div>
+            `;
+            lucide.createIcons();
+        }
+        this.signals = [];
+    }
+    
+    applySettings() {
+        this.updateConfig();
+        this.showNotification('Settings applied successfully', 'success');
+        this.toggleSettings();
+    }
+    
+    handleKeyboardShortcuts(e) {
+        // Ctrl/Cmd + key combinations
+        if (e.ctrlKey || e.metaKey) {
+            switch (e.key) {
+                case 'p':
+                    e.preventDefault();
+                    this.toggleRunning();
+                    break;
+                case 'r':
+                    e.preventDefault();
+                    this.resetData();
+                    break;
+                case 's':
+                    e.preventDefault();
+                    this.toggleSettings();
+                    break;
+                case 't':
+                    e.preventDefault();
+                    this.showConnectionTestModal();
+                    break;
+            }
+        }
+        
+        // Escape key
+        if (e.key === 'Escape') {
+            this.hideConnectionTestModal();
+            const settingsPanel = document.getElementById('settings-panel');
+            if (settingsPanel && !settingsPanel.classList.contains('hidden')) {
+                this.toggleSettings();
+            }
+        }
+    }
+    
+    handleOutsideClick(e) {
+        // Close modals when clicking outside
+        const modal = document.getElementById('connection-test-modal');
+        if (modal && !modal.classList.contains('hidden')) {
+            if (e.target === modal) {
+                this.hideConnectionTestModal();
+            }
+        }
+    }
+    
+    handleError(errorData) {
+        console.error('MT5 Error:', errorData);
+        this.showNotification(`MT5 Error: ${errorData.message || 'Unknown error'}`, 'error');
+    }
+    
+    updatePositions(positions) {
+        document.getElementById('open-positions').textContent = positions.length;
+        
+        // Calculate total P&L
+        const totalPnL = positions.reduce((sum, pos) => sum + (pos.profit || 0), 0);
+        const pnlElement = document.getElementById('daily-pnl');
+        if (pnlElement) {
+            const sign = totalPnL >= 0 ? '+' : '';
+            pnlElement.textContent = `${sign}$${totalPnL.toFixed(2)}`;
+            pnlElement.className = totalPnL >= 0 ? 'text-2xl font-bold text-primary-500' : 'text-2xl font-bold text-red-500';
+        }
+    }
+    
+    updateOrders(orders) {
+        document.getElementById('pending-orders').textContent = orders.length;
     }
     
     setupChart() {
@@ -400,6 +585,68 @@ class SuperTrendDashboard {
             console.error('Error loading initial data:', error);
             this.showConnectionError();
             this.hideLoadingState();
+        }
+    }
+    
+    showLoadingState() {
+        // Show loading indicators
+        const elements = ['pairs-count', 'current-price', 'account-balance'];
+        elements.forEach(id => {
+            const element = document.getElementById(id);
+            if (element) {
+                element.textContent = 'Loading...';
+                element.classList.add('animate-pulse');
+            }
+        });
+    }
+    
+    hideLoadingState() {
+        // Hide loading indicators
+        const elements = ['pairs-count', 'current-price', 'account-balance'];
+        elements.forEach(id => {
+            const element = document.getElementById(id);
+            if (element) {
+                element.classList.remove('animate-pulse');
+            }
+        });
+    }
+    
+    showConnectionError() {
+        // Show MT5 connection error
+        const statusContent = document.getElementById('mt5-status-content');
+        if (statusContent) {
+            statusContent.innerHTML = `
+                <div class="text-center py-8">
+                    <i data-lucide="alert-triangle" class="w-16 h-16 text-red-500 mx-auto mb-4"></i>
+                    <h3 class="text-white font-medium mb-2">MT5 Connection Required</h3>
+                    <p class="text-gray-400 mb-4">Please ensure MetaTrader 5 Terminal is running and you are logged into your account.</p>
+                    <div class="space-y-2 text-sm text-gray-400 mb-4">
+                        <p>✓ Start MetaTrader 5 Terminal</p>
+                        <p>✓ Log into your trading account</p>
+                        <p>✓ Enable 'Allow automated trading' in settings</p>
+                    </div>
+                    <button onclick="dashboard.refreshConnection()" class="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors">
+                        Try Connect
+                    </button>
+                </div>
+            `;
+        }
+        
+        // Update connection status
+        this.updateConnectionStatus(false, 'disconnected');
+        
+        lucide.createIcons();
+    }
+    
+    showEmptyPairsState() {
+        const selector = document.getElementById('pair-selector');
+        if (selector) {
+            selector.innerHTML = '<option value="" disabled>No pairs available - Check MT5 connection</option>';
+        }
+        
+        const pairsCount = document.getElementById('pairs-count');
+        if (pairsCount) {
+            pairsCount.textContent = '0 pairs';
         }
     }
     
@@ -545,6 +792,24 @@ class SuperTrendDashboard {
         infoPanel.classList.add('animate-fade-in');
     }
     
+    filterPairs(searchTerm) {
+        const term = searchTerm.toLowerCase();
+        this.filteredPairs = this.availablePairs.filter(pair => 
+            pair.symbol.toLowerCase().includes(term) || 
+            pair.name.toLowerCase().includes(term)
+        );
+        this.populatePairSelector();
+    }
+    
+    filterByCategory(category) {
+        if (category === 'all') {
+            this.filteredPairs = [...this.availablePairs];
+        } else {
+            this.filteredPairs = this.availablePairs.filter(pair => pair.category === category);
+        }
+        this.populatePairSelector();
+    }
+    
     updateAccountInfo(accountData) {
         this.accountInfo = { ...this.accountInfo, ...accountData };
         
@@ -565,7 +830,7 @@ class SuperTrendDashboard {
         if (balanceChange > 0) {
             balanceElement.className = 'text-3xl font-bold text-primary-500';
         } else if (balanceChange < 0) {
-            balanceElement.className = 'text-3xl font-bold text-danger-500';
+            balanceElement.className = 'text-3xl font-bold text-red-500';
         } else {
             balanceElement.className = 'text-3xl font-bold text-white';
         }
@@ -575,7 +840,7 @@ class SuperTrendDashboard {
         if (changeElement) {
             const sign = balanceChange >= 0 ? '+' : '';
             changeElement.textContent = `${sign}${balanceChange.toFixed(2)}%`;
-            changeElement.className = balanceChange >= 0 ? 'text-sm text-primary-500' : 'text-sm text-danger-500';
+            changeElement.className = balanceChange >= 0 ? 'text-sm text-primary-500' : 'text-sm text-red-500';
         }
         
         // Update margin level with animation
@@ -642,6 +907,34 @@ class SuperTrendDashboard {
         this.updatePriceChange(tick.last);
     }
     
+    updatePriceChange(currentPrice) {
+        // Simple price change calculation (you might want to store previous price)
+        const changeElement = document.getElementById('price-change');
+        if (changeElement && this.lastPrice) {
+            const change = currentPrice - this.lastPrice;
+            const changePercent = (change / this.lastPrice) * 100;
+            
+            const sign = change >= 0 ? '+' : '';
+            const icon = change >= 0 ? 'trending-up' : 'trending-down';
+            const color = change >= 0 ? 'text-primary-500' : 'text-red-500';
+            
+            changeElement.className = `flex items-center justify-end ${color}`;
+            changeElement.innerHTML = `
+                <i data-lucide="${icon}" class="w-5 h-5 mr-1"></i>
+                <span class="font-medium">${sign}${change.toFixed(5)} (${sign}${changePercent.toFixed(2)}%)</span>
+            `;
+            
+            lucide.createIcons();
+        }
+        
+        this.lastPrice = currentPrice;
+    }
+    
+    updateMarketData(data) {
+        // Update data points counter
+        document.getElementById('data-points').textContent = data.length || 0;
+    }
+    
     updateSupertrendData(data) {
         // Update trend indicator
         const trendElement = document.getElementById('trend-indicator');
@@ -701,7 +994,7 @@ class SuperTrendDashboard {
         // Sell signal
         if (sellIndicator) {
             if (data.sell_signal) {
-                sellIndicator.className = 'w-4 h-4 rounded-full bg-danger-500 signal-active';
+                sellIndicator.className = 'w-4 h-4 rounded-full bg-red-500 signal-active';
                 document.getElementById('sell-signal-strength').textContent = 'Active';
             } else {
                 sellIndicator.className = 'w-4 h-4 rounded-full border-2 border-gray-600';
@@ -735,7 +1028,7 @@ class SuperTrendDashboard {
         const signalElement = document.createElement('div');
         signalElement.className = 'glass rounded-xl p-4 mb-3 animate-fade-in border border-white/10';
         
-        const signalColor = signal.type === 'buy' ? 'primary-500' : 'danger-500';
+        const signalColor = signal.type === 'buy' ? 'primary-500' : 'red-500';
         const signalIcon = signal.type === 'buy' ? 'trending-up' : 'trending-down';
         
         signalElement.innerHTML = `
@@ -783,6 +1076,26 @@ class SuperTrendDashboard {
         this.showNotification(`${signal.type.toUpperCase()} signal for ${this.currentSymbol}`, 'info');
         
         lucide.createIcons();
+    }
+    
+    addChartPoint(price) {
+        if (!this.chart) return;
+        
+        const now = new Date().toLocaleTimeString();
+        
+        // Add new data point
+        this.chart.data.labels.push(now);
+        this.chart.data.datasets[0].data.push(price);
+        
+        // Keep only last 50 points
+        if (this.chart.data.labels.length > 50) {
+            this.chart.data.labels.shift();
+            this.chart.data.datasets.forEach(dataset => {
+                dataset.data.shift();
+            });
+        }
+        
+        this.chart.update('none');
     }
     
     // Enhanced UI update methods
@@ -936,7 +1249,7 @@ class SuperTrendDashboard {
             info: 'info'
         };
         
-        notification.classList.add(colors[type] || colors.info);
+        notification.classList.add(...(colors[type] || colors.info).split(' '));
         notification.innerHTML = `
             <div class="flex items-center space-x-3">
                 <i data-lucide="${icons[type] || icons.info}" class="w-5 h-5"></i>
@@ -1002,8 +1315,175 @@ class SuperTrendDashboard {
         }
     }
     
-    // Additional methods for enhanced functionality would continue here...
-    // This is a comprehensive foundation for the enhanced dashboard
+    updateDashboardState(state) {
+        this.currentSymbol = state.selected_pair;
+        this.config = state.config;
+        this.isRunning = state.is_running;
+        
+        // Update UI elements
+        document.getElementById('current-symbol').textContent = this.currentSymbol;
+        document.getElementById('footer-pair').textContent = this.currentSymbol;
+        
+        // Update connection status
+        this.updateMT5Status(state.connection);
+        
+        // Update parameter controls
+        this.updateParameterControls();
+    }
+    
+    updateParameterControls() {
+        const controls = [
+            { id: 'atr-period', key: 'periods', display: 'atr-period-value' },
+            { id: 'multiplier', key: 'multiplier', display: 'multiplier-value' },
+            { id: 'rsi-period', key: 'rsi_length', display: 'rsi-period-value' }
+        ];
+        
+        controls.forEach(control => {
+            const element = document.getElementById(control.id);
+            const display = document.getElementById(control.display);
+            
+            if (element && display) {
+                element.value = this.config[control.key];
+                
+                // Update display
+                const value = this.config[control.key];
+                if (control.key === 'multiplier') {
+                    display.textContent = value.toFixed(1);
+                } else {
+                    display.textContent = value;
+                }
+                
+                // Update range slider background
+                this.updateRangeSliderBackground(element);
+            }
+        });
+        
+        // Update RSI filter toggle
+        const rsiToggle = document.getElementById('use-rsi-filter');
+        if (rsiToggle) {
+            rsiToggle.checked = this.config.use_rsi_filter;
+            this.updateToggleUI(rsiToggle);
+        }
+    }
+    
+    updateTradingStats(trading) {
+        if (trading.open_positions !== undefined) {
+            document.getElementById('open-positions').textContent = trading.open_positions;
+        }
+        if (trading.pending_orders !== undefined) {
+            document.getElementById('pending-orders').textContent = trading.pending_orders;
+        }
+        if (trading.daily_pnl !== undefined) {
+            const pnlElement = document.getElementById('daily-pnl');
+            const sign = trading.daily_pnl >= 0 ? '+' : '';
+            pnlElement.textContent = `${sign}$${trading.daily_pnl.toFixed(2)}`;
+            pnlElement.className = trading.daily_pnl >= 0 ? 'text-2xl font-bold text-primary-500' : 'text-2xl font-bold text-red-500';
+        }
+    }
+    
+    toggleRunning() {
+        this.isRunning = !this.isRunning;
+        
+        const button = document.getElementById('play-pause-btn');
+        const statusIndicator = document.getElementById('status-indicator');
+        
+        if (this.isRunning) {
+            button.innerHTML = '<i data-lucide="pause" class="w-4 h-4 mr-2"></i><span>Pause</span>';
+            button.className = 'flex items-center px-6 py-3 rounded-xl btn-premium text-white font-medium';
+            statusIndicator.textContent = 'Live';
+            statusIndicator.className = 'text-primary-500 font-medium';
+        } else {
+            button.innerHTML = '<i data-lucide="play" class="w-4 h-4 mr-2"></i><span>Start</span>';
+            button.className = 'flex items-center px-6 py-3 rounded-xl glass hover:bg-white/10 text-white font-medium transition-all duration-300';
+            statusIndicator.textContent = 'Paused';
+            statusIndicator.className = 'text-red-400 font-medium';
+        }
+        
+        lucide.createIcons();
+    }
+    
+    toggleSettings() {
+        const panel = document.getElementById('settings-panel');
+        if (panel) {
+            panel.classList.toggle('hidden');
+        }
+    }
+    
+    resetData() {
+        if (this.chart) {
+            this.chart.data.labels = [];
+            this.chart.data.datasets.forEach(dataset => {
+                dataset.data = [];
+            });
+            this.chart.update();
+        }
+        
+        this.clearAlerts();
+        this.showNotification('Data reset successfully', 'success');
+    }
+    
+    changeSymbol(symbol) {
+        this.currentSymbol = symbol;
+        document.getElementById('current-symbol').textContent = symbol;
+        document.getElementById('footer-pair').textContent = symbol;
+        
+        // Reset chart data
+        this.resetData();
+        
+        // Refresh tick data for new symbol
+        this.refreshData();
+        
+        this.showNotification(`Switched to ${symbol}`, 'info');
+    }
+    
+    async refreshConnection() {
+        try {
+            const button = document.getElementById('refresh-connection');
+            const icon = button.querySelector('i');
+            
+            // Add spinning animation
+            icon.classList.add('animate-spin');
+            
+            const response = await fetch('/api/reconnect', { method: 'POST' });
+            const result = await response.json();
+            
+            if (result.status === 'success') {
+                console.log('✅ MT5 connection refreshed');
+                this.showNotification('MT5 connection refreshed', 'success');
+                // Reload data
+                await this.loadInitialData();
+            } else {
+                this.showNotification('Failed to refresh MT5 connection', 'error');
+            }
+            
+            // Remove spinning animation
+            setTimeout(() => {
+                icon.classList.remove('animate-spin');
+            }, 1000);
+            
+        } catch (error) {
+            console.error('Error refreshing connection:', error);
+            this.showNotification('Connection refresh failed', 'error');
+        }
+    }
+    
+    async updateConfig() {
+        try {
+            const response = await fetch('/api/config', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(this.config)
+            });
+            
+            if (response.ok) {
+                console.log('✅ Configuration updated');
+            }
+        } catch (error) {
+            console.error('Error updating config:', error);
+        }
+    }
 }
 
 // Initialize dashboard when page loads
