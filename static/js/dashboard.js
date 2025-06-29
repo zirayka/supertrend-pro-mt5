@@ -25,6 +25,7 @@ class SuperTrendDashboard {
         this.lastConnectionStatus = null;
         this.connectionStable = false;
         this.connectionCheckCount = 0;
+        this.selectedPairElement = null;
         
         this.init();
     }
@@ -200,9 +201,6 @@ class SuperTrendDashboard {
             });
         });
         
-        // Pair selection from list
-        this.setupPairSelection();
-        
         // Parameter controls
         this.setupParameterControls();
         
@@ -225,75 +223,6 @@ class SuperTrendDashboard {
         
         // Connection test modal
         this.setupConnectionTestModal();
-    }
-    
-    setupPairSelection() {
-        // Add click listeners to pair items
-        document.addEventListener('click', (e) => {
-            const pairItem = e.target.closest('.pair-item');
-            if (pairItem) {
-                const symbol = pairItem.dataset.symbol;
-                if (symbol) {
-                    this.selectPair(symbol, pairItem);
-                }
-            }
-        });
-    }
-    
-    selectPair(symbol, pairElement) {
-        // Remove previous selection
-        document.querySelectorAll('.pair-item').forEach(item => {
-            item.classList.remove('selected');
-        });
-        
-        // Add selection to clicked item
-        pairElement.classList.add('selected');
-        
-        // Update current symbol
-        this.currentSymbol = symbol;
-        
-        // Update UI
-        const currentSymbolEl = document.getElementById('current-symbol');
-        const footerPairEl = document.getElementById('footer-pair');
-        
-        if (currentSymbolEl) currentSymbolEl.textContent = symbol;
-        if (footerPairEl) footerPairEl.textContent = symbol;
-        
-        // Update pair details
-        this.updatePairDetails(symbol);
-        
-        // Reset chart data
-        this.resetData();
-        
-        // Refresh tick data for new symbol
-        this.refreshData();
-        
-        console.log(`📊 Selected pair: ${symbol}`);
-    }
-    
-    updatePairDetails(symbol) {
-        // Find pair data
-        const pair = this.availablePairs.find(p => p.symbol === symbol);
-        if (pair) {
-            this.updateSelectedPairInfo(pair);
-        } else {
-            // Use default values for sample pairs
-            const samplePairData = {
-                symbol: symbol,
-                digits: symbol.includes('JPY') ? 3 : 5,
-                min_lot: 0.01,
-                spread: 1.5,
-                category: this.getCategoryFromSymbol(symbol)
-            };
-            this.updateSelectedPairInfo(samplePairData);
-        }
-    }
-    
-    getCategoryFromSymbol(symbol) {
-        if (['XAUUSD', 'XAGUSD', 'XPTUSD', 'XPDUSD'].includes(symbol)) return 'commodities';
-        if (['ZECUSD', 'ALGOUSD', 'XTZUSD'].includes(symbol)) return 'crypto';
-        if (symbol.length === 6 && symbol.match(/^[A-Z]{6}$/)) return 'major';
-        return 'other';
     }
     
     setupParameterControls() {
@@ -513,12 +442,10 @@ class SuperTrendDashboard {
         const pairsList = document.getElementById('pairs-list');
         if (pairsList) {
             pairsList.innerHTML = `
-                <div class="text-center text-gray-400 py-8 px-4">
-                    <div class="w-12 h-12 mx-auto mb-3 rounded-full bg-gray-800/50 flex items-center justify-center">
-                        <i data-lucide="wifi-off" class="w-6 h-6 opacity-50"></i>
-                    </div>
-                    <p class="font-medium text-sm mb-1">No pairs available</p>
-                    <p class="text-xs text-gray-500">Check MT5 connection</p>
+                <div class="text-center text-gray-400 py-8">
+                    <i data-lucide="wifi-off" class="w-12 h-12 mx-auto mb-3 opacity-50"></i>
+                    <p class="font-medium">No pairs available</p>
+                    <p class="text-sm">Check MT5 connection</p>
                 </div>
             `;
         }
@@ -615,39 +542,95 @@ class SuperTrendDashboard {
         const pairsList = document.getElementById('pairs-list');
         if (!pairsList) return;
         
+        pairsList.innerHTML = '';
+        
         if (this.filteredPairs.length === 0) {
-            this.showNoPairsMessage();
+            pairsList.innerHTML = `
+                <div class="text-center text-gray-400 py-8">
+                    <i data-lucide="search" class="w-12 h-12 mx-auto mb-3 opacity-50"></i>
+                    <p class="font-medium">No pairs found</p>
+                    <p class="text-sm">Try adjusting your search or filters</p>
+                </div>
+            `;
+            lucide.createIcons();
             return;
         }
         
-        let html = '';
-        this.filteredPairs.slice(0, 20).forEach(pair => { // Show first 20 pairs
-            const categoryClass = `category-${pair.category}`;
-            const isSelected = pair.symbol === this.currentSymbol ? 'selected' : '';
+        this.filteredPairs.forEach(pair => {
+            const pairElement = document.createElement('div');
+            pairElement.className = 'pair-item p-3 rounded-lg cursor-pointer transition-all duration-200';
+            pairElement.dataset.symbol = pair.symbol;
             
-            html += `
-                <div class="pair-item ${isSelected} p-3 border-b border-white/5 hover:bg-white/5 cursor-pointer transition-all" data-symbol="${pair.symbol}">
-                    <div class="flex items-center justify-between">
-                        <div class="flex-1">
-                            <div class="flex items-center space-x-2 mb-1">
-                                <span class="text-white font-medium text-sm">${pair.symbol}</span>
-                                <span class="category-badge ${categoryClass}">${pair.category.toUpperCase()}</span>
-                            </div>
-                            <div class="text-gray-400 text-xs">${pair.name}</div>
+            // Add selected class if this is the current symbol
+            if (pair.symbol === this.currentSymbol) {
+                pairElement.classList.add('selected');
+                this.selectedPairElement = pairElement;
+                this.updateSelectedPairInfo(pair);
+            }
+            
+            pairElement.innerHTML = `
+                <div class="flex items-center justify-between">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-8 h-8 bg-gray-700 rounded-lg flex items-center justify-center">
+                            <span class="text-xs font-bold text-white">${pair.symbol.substring(0, 2)}</span>
                         </div>
-                        <div class="text-right">
-                            <div class="text-white font-medium text-sm">--</div>
-                            <div class="text-gray-400 text-xs">--</div>
+                        <div>
+                            <div class="text-white font-medium">${pair.symbol}</div>
+                            <div class="text-gray-400 text-sm truncate max-w-32">${pair.name}</div>
+                        </div>
+                    </div>
+                    <div class="text-right">
+                        <div class="text-white font-medium">1.08500</div>
+                        <div class="flex items-center space-x-1">
+                            <span class="category-${pair.category} px-2 py-0.5 rounded text-xs font-medium">${pair.category}</span>
                         </div>
                     </div>
                 </div>
             `;
+            
+            // Add click event listener
+            pairElement.addEventListener('click', () => {
+                this.selectPair(pair, pairElement);
+            });
+            
+            pairsList.appendChild(pairElement);
         });
         
-        pairsList.innerHTML = html;
+        lucide.createIcons();
+    }
+    
+    selectPair(pair, element) {
+        // Remove selection from previous element
+        if (this.selectedPairElement) {
+            this.selectedPairElement.classList.remove('selected');
+        }
         
-        // Re-setup pair selection listeners
-        this.setupPairSelection();
+        // Add selection to new element
+        element.classList.add('selected');
+        this.selectedPairElement = element;
+        
+        // Update current symbol
+        this.changeSymbol(pair.symbol);
+        
+        // Update pair info
+        this.updateSelectedPairInfo(pair);
+    }
+    
+    updateSelectedPairInfo(pair) {
+        const infoPanel = document.getElementById('selected-pair-info');
+        if (!infoPanel) return;
+        
+        const digitsEl = document.getElementById('pair-digits');
+        const minLotEl = document.getElementById('pair-min-lot');
+        const spreadEl = document.getElementById('pair-spread');
+        const categoryEl = document.getElementById('pair-category');
+        
+        if (digitsEl) digitsEl.textContent = pair.digits;
+        if (minLotEl) minLotEl.textContent = pair.min_lot;
+        if (spreadEl) spreadEl.textContent = `${pair.spread || 0} pips`;
+        if (categoryEl) categoryEl.textContent = pair.category || 'Unknown';
+        
+        infoPanel.classList.remove('hidden');
     }
     
     filterPairs(searchTerm) {
@@ -668,23 +651,6 @@ class SuperTrendDashboard {
         this.populatePairsList();
     }
     
-    updateSelectedPairInfo(pair) {
-        const infoPanel = document.getElementById('selected-pair-info');
-        if (!infoPanel) return;
-        
-        const digitsEl = document.getElementById('pair-digits');
-        const minLotEl = document.getElementById('pair-min-lot');
-        const spreadEl = document.getElementById('pair-spread');
-        const categoryEl = document.getElementById('pair-category');
-        
-        if (digitsEl) digitsEl.textContent = pair.digits;
-        if (minLotEl) minLotEl.textContent = pair.min_lot;
-        if (spreadEl) spreadEl.textContent = `${pair.spread} pips`;
-        if (categoryEl) categoryEl.textContent = pair.category || 'Unknown';
-        
-        infoPanel.classList.remove('hidden');
-    }
-    
     updateAccountInfo(accountData) {
         this.accountInfo = { ...this.accountInfo, ...accountData };
         
@@ -697,7 +663,7 @@ class SuperTrendDashboard {
         const balanceEl = document.getElementById('account-balance');
         const equityEl = document.getElementById('account-equity');
         const freeMarginEl = document.getElementById('account-free-margin');
-        const marginLevelEl = document.getElementById('margin-level-percent');
+        const marginLevelEl = document.getElementById('account-margin-level');
         
         if (balanceEl) balanceEl.textContent = `$${balance.toFixed(2)}`;
         if (equityEl) equityEl.textContent = `$${equity.toFixed(2)}`;
@@ -717,9 +683,11 @@ class SuperTrendDashboard {
         
         // Update margin level bar
         const marginBar = document.getElementById('margin-level-bar');
-        if (marginBar) {
+        const marginPercent = document.getElementById('margin-level-percent');
+        if (marginBar && marginPercent) {
             const safeLevel = Math.min(marginLevel, 100);
             marginBar.style.width = `${safeLevel}%`;
+            marginPercent.textContent = `${marginLevel.toFixed(1)}%`;
             
             // Color based on margin level
             if (marginLevel > 100) {
@@ -1048,35 +1016,35 @@ class SuperTrendDashboard {
         
         // Create signal element
         const signalElement = document.createElement('div');
-        signalElement.className = `alert-item alert-${signal.type} p-3 border-b border-white/5 animate-fade-in`;
+        signalElement.className = 'glass rounded-xl p-4 mb-3 animate-fade-in';
         signalElement.innerHTML = `
             <div class="flex items-center justify-between">
                 <div class="flex items-center space-x-3">
                     <div class="${signal.type === 'buy' ? 'text-emerald-400' : 'text-red-400'}">
-                        <i data-lucide="${signal.type === 'buy' ? 'trending-up' : 'trending-down'}" class="w-4 h-4"></i>
+                        <i data-lucide="${signal.type === 'buy' ? 'trending-up' : 'trending-down'}" class="w-5 h-5"></i>
                     </div>
                     <div>
-                        <div class="flex items-center space-x-2 mb-1">
-                            <span class="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium ${
+                        <div class="flex items-center space-x-2">
+                            <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
                                 signal.type === 'buy' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'
                             }">
                                 ${signal.type.toUpperCase()}
                             </span>
-                            <span class="text-white font-medium text-sm">${this.formatPrice(signal.price)}</span>
+                            <span class="text-white font-medium">${this.formatPrice(signal.price)}</span>
                         </div>
-                        <div class="text-gray-400 text-xs">
+                        <div class="text-gray-400 text-sm">
                             Strength: ${signal.strength.toFixed(1)}% | Confidence: ${signal.confidence.toFixed(1)}%
                         </div>
                     </div>
                 </div>
-                <div class="text-gray-400 text-xs">
+                <div class="text-gray-400 text-sm">
                     ${new Date(signal.timestamp).toLocaleTimeString()}
                 </div>
             </div>
         `;
         
         // Replace "no signals" message if it exists
-        if (alertsContent.querySelector('.text-center')) {
+        if (alertsContent.querySelector('.opacity-50')) {
             alertsContent.innerHTML = '';
         }
         
@@ -1084,7 +1052,7 @@ class SuperTrendDashboard {
         alertsContent.insertBefore(signalElement, alertsContent.firstChild);
         
         // Keep only last 10 signals
-        const signals = alertsContent.querySelectorAll('.alert-item');
+        const signals = alertsContent.querySelectorAll('.glass');
         if (signals.length > 10) {
             signals[signals.length - 1].remove();
         }
@@ -1164,12 +1132,10 @@ class SuperTrendDashboard {
         const alertsContent = document.getElementById('alerts-content');
         if (alertsContent) {
             alertsContent.innerHTML = `
-                <div class="text-center text-gray-400 py-8 px-4">
-                    <div class="w-12 h-12 mx-auto mb-3 rounded-full bg-gray-800/50 flex items-center justify-center">
-                        <i data-lucide="bell" class="w-6 h-6 opacity-50"></i>
-                    </div>
-                    <p class="font-medium text-sm mb-1">No signals yet</p>
-                    <p class="text-xs text-gray-500">Trading signals will appear here when conditions are met</p>
+                <div class="text-center text-gray-400 py-8">
+                    <i data-lucide="bell" class="w-12 h-12 mx-auto mb-3 opacity-50"></i>
+                    <p class="font-medium">No signals yet</p>
+                    <p class="text-sm">Trading signals will appear here when conditions are met</p>
                 </div>
             `;
         }
