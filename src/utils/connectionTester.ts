@@ -1,6 +1,21 @@
 export class ConnectionTester {
   private testResults: Map<string, any> = new Map();
 
+  // Detect if running in WebContainer environment
+  private isWebContainer(): boolean {
+    // Check for WebContainer-specific indicators
+    return (
+      typeof window !== 'undefined' && (
+        window.location.hostname.includes('webcontainer-api.io') ||
+        window.location.hostname.includes('.local-credentialless.') ||
+        window.location.hostname.includes('stackblitz') ||
+        // Check for other WebContainer indicators
+        (window as any).__webcontainer__ === true ||
+        document.querySelector('meta[name="webcontainer"]') !== null
+      )
+    );
+  }
+
   // Test WebSocket connection manually
   async testWebSocketConnection(url: string, timeout: number = 10000): Promise<{
     success: boolean;
@@ -8,6 +23,15 @@ export class ConnectionTester {
     latency?: number;
     error?: any;
   }> {
+    // If running in WebContainer, return disabled result
+    if (this.isWebContainer()) {
+      return {
+        success: false,
+        message: 'WebSocket connections disabled in WebContainer environment',
+        error: 'WEBCONTAINER_DISABLED'
+      };
+    }
+
     const startTime = Date.now();
     
     return new Promise((resolve) => {
@@ -104,6 +128,19 @@ export class ConnectionTester {
   async testMultipleConnections(urls: string[]): Promise<Map<string, any>> {
     const results = new Map();
     
+    // If running in WebContainer, return disabled results for all URLs
+    if (this.isWebContainer()) {
+      console.log(`ℹ️ WebContainer detected - skipping ${urls.length} connection tests`);
+      for (const url of urls) {
+        results.set(url, {
+          success: false,
+          message: 'WebSocket connections disabled in WebContainer environment',
+          error: 'WEBCONTAINER_DISABLED'
+        });
+      }
+      return results;
+    }
+    
     console.log(`🔍 Testing ${urls.length} connection URLs...`);
     
     for (const url of urls) {
@@ -124,6 +161,23 @@ export class ConnectionTester {
     overall: boolean;
   }> {
     console.log('🔍 Testing MT5 Terminal connection...');
+    
+    // If running in WebContainer, return disabled results
+    if (this.isWebContainer()) {
+      const disabledResult = {
+        success: false,
+        message: 'MT5 connections disabled in WebContainer environment - running in demo mode',
+        error: 'WEBCONTAINER_DISABLED'
+      };
+      
+      console.log('ℹ️ WebContainer detected - MT5 connection disabled, using demo mode');
+      
+      return {
+        websocket: disabledResult,
+        fileAccess: disabledResult,
+        overall: false
+      };
+    }
     
     // Test WebSocket connection
     const wsResult = await this.testWebSocketConnection('ws://localhost:8765');
@@ -151,6 +205,15 @@ export class ConnectionTester {
     message: string;
     files?: string[];
   }> {
+    // If running in WebContainer, return disabled result
+    if (this.isWebContainer()) {
+      return {
+        success: false,
+        message: 'File access disabled in WebContainer environment',
+        files: []
+      };
+    }
+
     const testFiles = [
       '/api/mt5-files/tick_data.json',
       '/api/mt5-files/account_info.json',
@@ -186,6 +249,28 @@ export class ConnectionTester {
     stop: () => void;
     getStats: () => any;
   } {
+    // If running in WebContainer, return a no-op monitor
+    if (this.isWebContainer()) {
+      console.log('ℹ️ Connection monitoring disabled in WebContainer environment');
+      return {
+        stop: () => {
+          console.log('ℹ️ Connection monitoring was disabled (WebContainer environment)');
+        },
+        getStats: () => ({
+          totalTests: 0,
+          successfulConnections: 0,
+          failedConnections: 0,
+          averageLatency: 0,
+          lastTest: {
+            success: false,
+            message: 'Monitoring disabled in WebContainer environment',
+            error: 'WEBCONTAINER_DISABLED'
+          },
+          uptime: 0
+        })
+      };
+    }
+
     let isRunning = true;
     let stats = {
       totalTests: 0,
@@ -243,6 +328,50 @@ export class ConnectionTester {
     portAccess: any[];
   }> {
     console.log('🔍 Running network diagnostics...');
+    
+    // If running in WebContainer, return limited diagnostics
+    if (this.isWebContainer()) {
+      console.log('ℹ️ Limited network diagnostics in WebContainer environment');
+      
+      // Test internet access (if available)
+      let internetAccess = false;
+      try {
+        const response = await fetch('https://httpbin.org/get', { 
+          method: 'HEAD',
+          signal: AbortSignal.timeout(5000)
+        });
+        internetAccess = response.ok;
+      } catch (error) {
+        internetAccess = false;
+      }
+      
+      // Test DNS resolution
+      let dnsResolution = false;
+      try {
+        const response = await fetch('https://google.com', { 
+          method: 'HEAD',
+          signal: AbortSignal.timeout(5000)
+        });
+        dnsResolution = true;
+      } catch (error) {
+        dnsResolution = false;
+      }
+      
+      const results = {
+        localhost: false, // Always false in WebContainer for MT5 purposes
+        internetAccess,
+        dnsResolution,
+        portAccess: [] // No port testing in WebContainer
+      };
+      
+      console.log('📊 Network Diagnostics Results (WebContainer):');
+      console.log('  Localhost (MT5):', '❌ (WebContainer environment)');
+      console.log('  Internet:', results.internetAccess ? '✅' : '❌');
+      console.log('  DNS:', results.dnsResolution ? '✅' : '❌');
+      console.log('  Port Access: Disabled in WebContainer');
+      
+      return results;
+    }
     
     // Test localhost access
     const localhostTest = await this.testWebSocketConnection('ws://localhost:8080', 3000);
@@ -307,6 +436,15 @@ export class ConnectionTester {
   getConnectionRecommendations(testResults: any): string[] {
     const recommendations: string[] = [];
     
+    // If running in WebContainer, provide WebContainer-specific recommendations
+    if (this.isWebContainer()) {
+      recommendations.push('ℹ️ Running in WebContainer environment (demo mode)');
+      recommendations.push('💡 MT5 connections are not available in this environment');
+      recommendations.push('💡 Download and run locally to connect to MT5 Terminal');
+      recommendations.push('📖 See MT5 connection guide for local setup instructions');
+      return recommendations;
+    }
+    
     if (!testResults.websocket?.success) {
       recommendations.push('❌ WebSocket connection failed');
       recommendations.push('💡 Check if MT5 Terminal is running');
@@ -338,6 +476,20 @@ export class BrowserConnectionTester {
   static async quickTest(url: string = 'ws://localhost:8765'): Promise<void> {
     console.log(`%c🔍 Quick WebSocket Test`, 'color: blue; font-weight: bold');
     console.log(`Testing: ${url}`);
+    
+    // Check if running in WebContainer
+    const isWebContainer = (
+      window.location.hostname.includes('webcontainer-api.io') ||
+      window.location.hostname.includes('.local-credentialless.') ||
+      window.location.hostname.includes('stackblitz') ||
+      (window as any).__webcontainer__ === true
+    );
+    
+    if (isWebContainer) {
+      console.log(`%cℹ️ WebContainer detected - WebSocket connections disabled`, 'color: orange; font-weight: bold');
+      console.log(`%c💡 Download and run locally to test MT5 connections`, 'color: blue');
+      return;
+    }
     
     const ws = new WebSocket(url);
     let connected = false;
