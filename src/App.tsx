@@ -7,8 +7,9 @@ import { TrendAnalysis } from './components/TrendAnalysis';
 import { AlertPanel } from './components/AlertPanel';
 import { PairSelector } from './components/PairSelector';
 import { MT5Status } from './components/MT5Status';
+import { ConnectionTester } from './components/ConnectionTester';
 import { MarketData, SuperTrendConfig, SuperTrendResult, TradingSignal, CurrencyPair, MT5Connection, MT5Tick } from './types/trading';
-import { BarChart3, Play, Pause, RotateCcw, Settings } from 'lucide-react';
+import { BarChart3, Play, Pause, RotateCcw, Settings, TestTube } from 'lucide-react';
 
 const defaultConfig: SuperTrendConfig = {
   periods: 20,
@@ -38,6 +39,7 @@ function App() {
   const [mt5Connection, setMT5Connection] = useState<MT5Connection>({ isConnected: false });
   const [currentTick, setCurrentTick] = useState<MT5Tick | null>(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [showTester, setShowTester] = useState(false);
   
   const [calculator] = useState(() => new SuperTrendCalculator(config));
   const [mt5Manager] = useState(() => new MT5ConnectionManager());
@@ -54,8 +56,10 @@ function App() {
     mt5Manager.subscribe('connection', (connection: MT5Connection) => {
       setMT5Connection(connection);
       if (connection.isConnected) {
+        console.log('✅ MT5 Terminal connected - switching to live data');
         mt5Manager.getSymbols();
       } else {
+        console.log('❌ MT5 Terminal not connected - using demo data');
         // Fallback to demo data
         setAvailablePairs(demoProvider.getAvailableSymbols());
         setMT5Connection(demoProvider.getConnectionStatus());
@@ -63,6 +67,7 @@ function App() {
     });
 
     mt5Manager.subscribe('symbols', (pairs: CurrencyPair[]) => {
+      console.log(`📊 Received ${pairs.length} symbols from MT5`);
       setAvailablePairs(pairs);
     });
 
@@ -100,6 +105,7 @@ function App() {
       console.error('MT5 Error:', error);
       // Fallback to demo mode
       if (availablePairs.length === 0) {
+        console.log('🔄 Falling back to demo mode');
         setAvailablePairs(demoProvider.getAvailableSymbols());
         setMT5Connection(demoProvider.getConnectionStatus());
       }
@@ -108,10 +114,11 @@ function App() {
     // Initialize with demo data if MT5 not available
     setTimeout(() => {
       if (!mt5Connection.isConnected && availablePairs.length === 0) {
+        console.log('⏰ Timeout reached - initializing demo mode');
         setAvailablePairs(demoProvider.getAvailableSymbols());
         setMT5Connection(demoProvider.getConnectionStatus());
       }
-    }, 3000);
+    }, 5000);
 
     return () => {
       mt5Manager.disconnect();
@@ -213,7 +220,7 @@ function App() {
 
   const handleReconnect = () => {
     // Attempt to reconnect to MT5
-    window.location.reload();
+    mt5Manager.reconnect();
   };
 
   return (
@@ -232,10 +239,21 @@ function App() {
             
             <div className="flex items-center space-x-4">
               <button
+                onClick={() => setShowTester(!showTester)}
+                className={`p-2 rounded-lg transition-colors ${
+                  showTester ? 'bg-purple-500 text-white' : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
+                }`}
+                title="Connection Tester"
+              >
+                <TestTube className="w-5 h-5" />
+              </button>
+              
+              <button
                 onClick={() => setShowSettings(!showSettings)}
                 className={`p-2 rounded-lg transition-colors ${
                   showSettings ? 'bg-blue-500 text-white' : 'bg-gray-700 hover:bg-gray-600 text-gray-300'
                 }`}
+                title="Settings"
               >
                 <Settings className="w-5 h-5" />
               </button>
@@ -292,6 +310,10 @@ function App() {
               onReconnect={handleReconnect}
             />
             
+            {showTester && (
+              <ConnectionTester />
+            )}
+            
             {showSettings && (
               <ParameterControls config={config} onConfigChange={setConfig} />
             )}
@@ -308,6 +330,11 @@ function App() {
             <span className="text-gray-400">
               Status: <span className={isRunning ? 'text-emerald-400' : 'text-red-400'}>
                 {isRunning ? 'Live' : 'Paused'}
+              </span>
+            </span>
+            <span className="text-gray-400">
+              Mode: <span className={mt5Connection.isConnected ? 'text-emerald-400' : 'text-yellow-400'}>
+                {mt5Connection.isConnected ? 'MT5 Live' : 'Demo'}
               </span>
             </span>
             <span className="text-gray-400">
