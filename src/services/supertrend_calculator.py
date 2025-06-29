@@ -1,4 +1,4 @@
-"""SuperTrend indicator calculation service with enhanced float validation"""
+"""SuperTrend indicator calculation service with enhanced float validation and modern pandas syntax"""
 
 import logging
 import numpy as np
@@ -165,7 +165,7 @@ class SuperTrendCalculator:
             return pd.DataFrame()
     
     def _calculate_atr(self, df: pd.DataFrame, period: int) -> Optional[pd.Series]:
-        """Calculate Average True Range with enhanced validation"""
+        """Calculate Average True Range with enhanced validation and modern pandas syntax"""
         try:
             if df.empty or len(df) < period:
                 return None
@@ -179,7 +179,7 @@ class SuperTrendCalculator:
             tr2 = abs(high - close.shift(1))
             tr3 = abs(low - close.shift(1))
             
-            # Handle NaN values in shifted data
+            # Handle NaN values in shifted data using modern pandas syntax
             tr2 = tr2.fillna(tr1)
             tr3 = tr3.fillna(tr1)
             
@@ -191,8 +191,8 @@ class SuperTrendCalculator:
             # ATR is the moving average of True Range
             atr = true_range.rolling(window=period, min_periods=period).mean()
             
-            # Fill any remaining NaN values
-            atr = atr.fillna(method='bfill').fillna(0.0001)
+            # Fill any remaining NaN values using modern pandas syntax
+            atr = atr.bfill().fillna(0.0001)
             
             # Validate all ATR values
             atr = atr.apply(lambda x: self._validate_float(x, 0.0001))
@@ -204,7 +204,7 @@ class SuperTrendCalculator:
             return None
     
     def _calculate_rsi(self, prices: pd.Series, period: int) -> Optional[pd.Series]:
-        """Calculate Relative Strength Index with enhanced validation"""
+        """Calculate Relative Strength Index with enhanced validation and modern pandas syntax"""
         try:
             if prices.empty or len(prices) < period + 1:
                 return None
@@ -221,9 +221,9 @@ class SuperTrendCalculator:
             avg_gain = gain.rolling(window=period, min_periods=period).mean()
             avg_loss = loss.rolling(window=period, min_periods=period).mean()
             
-            # Fill NaN values
-            avg_gain = avg_gain.fillna(method='bfill').fillna(0)
-            avg_loss = avg_loss.fillna(method='bfill').fillna(0.0001)  # Avoid division by zero
+            # Fill NaN values using modern pandas syntax
+            avg_gain = avg_gain.bfill().fillna(0)
+            avg_loss = avg_loss.bfill().fillna(0.0001)  # Avoid division by zero
             
             # Calculate RSI with safe division
             rs = avg_gain / avg_loss.replace(0, 0.0001)  # Avoid division by zero
