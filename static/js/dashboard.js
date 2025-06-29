@@ -1,14 +1,14 @@
 /**
  * SuperTrend Pro MT5 Dashboard - Enhanced Real-time JavaScript
- * Optimized for minimal delay between MT5 and dashboard
+ * Fixed price formatting and optimized for minimal delay
  */
 
 class SuperTrendDashboard {
     constructor() {
         // Real-time optimization settings
-        this.updateInterval = 500; // Reduced from 2000ms to 500ms for faster updates
-        this.fastTickInterval = 100; // Ultra-fast tick updates
-        this.reconnectDelay = 1000; // Quick reconnection
+        this.updateInterval = 1000; // Optimized to 1 second for better balance
+        this.fastTickInterval = 500; // Fast tick updates
+        this.reconnectDelay = 2000; // Quick reconnection
         this.maxRetries = 10;
         this.retryCount = 0;
         
@@ -41,12 +41,15 @@ class SuperTrendDashboard {
         this.updateTimes = [];
         this.avgUpdateTime = 0;
         
+        // Price formatting cache
+        this.priceFormatCache = new Map();
+        
         // Initialize dashboard
         this.init();
     }
     
     async init() {
-        console.log('🚀 Initializing SuperTrend Pro MT5 Dashboard - Real-time Optimized');
+        console.log('🚀 Initializing SuperTrend Pro MT5 Dashboard - Optimized Version');
         
         try {
             // Setup event listeners first
@@ -58,8 +61,8 @@ class SuperTrendDashboard {
             // Start WebSocket connection
             this.connectWebSocket();
             
-            // Start fast data polling as backup
-            this.startFastPolling();
+            // Start optimized data polling as backup
+            this.startOptimizedPolling();
             
             // Load initial data immediately
             await this.loadInitialData();
@@ -226,7 +229,7 @@ class SuperTrendDashboard {
         this.updateSupertrendDisplay();
     }
     
-    startFastPolling() {
+    startOptimizedPolling() {
         // Fast tick polling for critical price updates
         setInterval(async () => {
             if (!this.isConnected && this.isRunning) {
@@ -349,6 +352,43 @@ class SuperTrendDashboard {
         }
     }
     
+    // Enhanced price formatting with caching
+    formatPrice(price, symbol = null) {
+        if (typeof price !== 'number' || isNaN(price)) return '0.00000';
+        
+        const cacheKey = `${price}_${symbol}`;
+        if (this.priceFormatCache.has(cacheKey)) {
+            return this.priceFormatCache.get(cacheKey);
+        }
+        
+        let formatted;
+        
+        // Determine decimal places based on symbol and price range
+        if (symbol && symbol.includes('JPY')) {
+            formatted = price.toFixed(3); // JPY pairs typically use 3 decimals
+        } else if (price > 1000) {
+            // For crypto or indices with high values
+            formatted = price.toFixed(2);
+        } else if (price > 100) {
+            formatted = price.toFixed(3);
+        } else if (price > 10) {
+            formatted = price.toFixed(4);
+        } else {
+            formatted = price.toFixed(5); // Standard forex pairs
+        }
+        
+        // Cache the result
+        this.priceFormatCache.set(cacheKey, formatted);
+        
+        // Limit cache size
+        if (this.priceFormatCache.size > 1000) {
+            const firstKey = this.priceFormatCache.keys().next().value;
+            this.priceFormatCache.delete(firstKey);
+        }
+        
+        return formatted;
+    }
+    
     updatePriceDisplay(tickData) {
         const elements = {
             currentPrice: document.getElementById('current-price'),
@@ -359,20 +399,23 @@ class SuperTrendDashboard {
             priceChange: document.getElementById('price-change')
         };
         
-        if (elements.currentPrice && tickData.last) {
-            elements.currentPrice.textContent = this.formatPrice(tickData.last);
+        // Use the most appropriate price for display
+        const displayPrice = tickData.last || tickData.bid || tickData.ask || 0;
+        
+        if (elements.currentPrice && displayPrice) {
+            elements.currentPrice.textContent = this.formatPrice(displayPrice, this.selectedPair);
         }
         
         if (elements.bidPrice && tickData.bid) {
-            elements.bidPrice.textContent = this.formatPrice(tickData.bid);
+            elements.bidPrice.textContent = this.formatPrice(tickData.bid, this.selectedPair);
         }
         
         if (elements.askPrice && tickData.ask) {
-            elements.askPrice.textContent = this.formatPrice(tickData.ask);
+            elements.askPrice.textContent = this.formatPrice(tickData.ask, this.selectedPair);
         }
         
         if (elements.spread && tickData.bid && tickData.ask) {
-            const spread = (tickData.ask - tickData.bid);
+            const spread = Math.abs(tickData.ask - tickData.bid);
             const pips = this.calculatePips(spread, this.selectedPair);
             elements.spread.textContent = `${pips.toFixed(1)} pips`;
         }
@@ -387,13 +430,26 @@ class SuperTrendDashboard {
             const changeText = elements.priceChange.querySelector('span');
             
             if (changeIcon && changeText) {
-                // Simulate price change for demo (in real implementation, calculate from historical data)
-                const change = 0.0012;
-                const changePercent = 0.11;
+                // Calculate change based on previous price if available
+                const prevPrice = this.chartData.length > 0 ? this.chartData[this.chartData.length - 1].y : displayPrice;
+                const change = displayPrice - prevPrice;
+                const changePercent = prevPrice > 0 ? (change / prevPrice) * 100 : 0;
                 
-                changeText.textContent = `+${change.toFixed(4)} (+${changePercent.toFixed(2)}%)`;
-                changeIcon.setAttribute('data-lucide', 'trending-up');
-                elements.priceChange.className = 'flex items-center justify-end text-primary-500 text-sm';
+                const sign = change >= 0 ? '+' : '';
+                changeText.textContent = `${sign}${change.toFixed(4)} (${sign}${changePercent.toFixed(2)}%)`;
+                
+                if (change >= 0) {
+                    changeIcon.setAttribute('data-lucide', 'trending-up');
+                    elements.priceChange.className = 'flex items-center justify-end text-primary-500 text-sm';
+                } else {
+                    changeIcon.setAttribute('data-lucide', 'trending-down');
+                    elements.priceChange.className = 'flex items-center justify-end text-red-500 text-sm';
+                }
+                
+                // Refresh icons
+                if (window.lucide) {
+                    window.lucide.createIcons();
+                }
             }
         }
     }
@@ -426,6 +482,11 @@ class SuperTrendDashboard {
                     text.textContent = 'Connecting to MT5...';
                     text.className = 'text-red-400 font-medium text-sm';
                 }
+            }
+            
+            // Refresh icons
+            if (window.lucide) {
+                window.lucide.createIcons();
             }
         }
         
@@ -465,7 +526,7 @@ class SuperTrendDashboard {
         }
         
         if (account.margin_level !== undefined) {
-            const marginLevel = Math.min(account.margin_level || 0, 100);
+            const marginLevel = Math.min(Math.max(account.margin_level || 0, 0), 100);
             this.updateElement('margin-level-percent', `${marginLevel.toFixed(1)}%`);
             
             const marginBar = document.getElementById('margin-level-bar');
@@ -526,6 +587,11 @@ class SuperTrendDashboard {
                     <p class="text-xs">Connecting to MT5...</p>
                 </div>
             `;
+            
+            // Refresh icons
+            if (window.lucide) {
+                window.lucide.createIcons();
+            }
             return;
         }
         
@@ -541,7 +607,7 @@ class SuperTrendDashboard {
                         <span class="category-${pair.category} px-1.5 py-0.5 rounded text-xs font-medium">${pair.category}</span>
                     </div>
                     <div class="text-right">
-                        <div class="text-xs text-gray-400">${pair.spread?.toFixed(1) || '0.0'} pips</div>
+                        <div class="text-xs text-gray-400">${(pair.spread || 0).toFixed(1)} pips</div>
                     </div>
                 </div>
                 <div class="text-xs text-gray-400 mt-1 truncate">${pair.name}</div>
@@ -579,15 +645,21 @@ class SuperTrendDashboard {
             trendIndicator.className = isBullish ? 
                 'flex items-center px-3 py-1.5 rounded-full gradient-primary text-sm' :
                 'flex items-center px-3 py-1.5 rounded-full gradient-danger text-sm';
+            
+            // Refresh icons
+            if (window.lucide) {
+                window.lucide.createIcons();
+            }
         }
         
         // Update trend strength
         if (supertrend.trend_strength !== undefined) {
-            this.updateElement('trend-strength-value', `${supertrend.trend_strength.toFixed(1)}%`);
+            const strength = Math.min(Math.max(supertrend.trend_strength, 0), 100);
+            this.updateElement('trend-strength-value', `${strength.toFixed(1)}%`);
             
             const strengthBar = document.getElementById('trend-strength-bar');
             if (strengthBar) {
-                strengthBar.style.width = `${Math.min(supertrend.trend_strength, 100)}%`;
+                strengthBar.style.width = `${strength}%`;
             }
         }
         
@@ -598,11 +670,12 @@ class SuperTrendDashboard {
         
         // Update RSI
         if (supertrend.rsi !== undefined) {
-            this.updateElement('rsi-value', supertrend.rsi.toFixed(1));
+            const rsi = Math.min(Math.max(supertrend.rsi, 0), 100);
+            this.updateElement('rsi-value', rsi.toFixed(1));
             
             const rsiBar = document.getElementById('rsi-bar');
             if (rsiBar) {
-                rsiBar.style.width = `${Math.min(supertrend.rsi, 100)}%`;
+                rsiBar.style.width = `${rsi}%`;
             }
         }
         
@@ -628,7 +701,7 @@ class SuperTrendDashboard {
         
         try {
             const now = new Date();
-            const price = tickData.last || tickData.bid || 0;
+            const price = tickData.last || tickData.bid || tickData.ask || 0;
             
             // Add new data point
             this.chartData.push({
@@ -685,7 +758,12 @@ class SuperTrendDashboard {
                         tooltip: {
                             enabled: true,
                             mode: 'index',
-                            intersect: false
+                            intersect: false,
+                            callbacks: {
+                                label: (context) => {
+                                    return `Price: ${this.formatPrice(context.parsed.y, this.selectedPair)}`;
+                                }
+                            }
                         }
                     },
                     scales: {
@@ -707,8 +785,8 @@ class SuperTrendDashboard {
                             },
                             ticks: {
                                 color: '#9ca3af',
-                                callback: function(value) {
-                                    return value.toFixed(5);
+                                callback: (value) => {
+                                    return this.formatPrice(value, this.selectedPair);
                                 }
                             }
                         }
@@ -759,6 +837,23 @@ class SuperTrendDashboard {
         categoryFilters.forEach(filter => {
             filter.addEventListener('click', (e) => this.filterByCategory(e.target.dataset.category));
         });
+        
+        // Settings panel
+        const closeSettings = document.getElementById('close-settings');
+        if (closeSettings) {
+            closeSettings.addEventListener('click', () => this.toggleSettings());
+        }
+        
+        // Connection test modal
+        const closeTestModal = document.getElementById('close-test-modal');
+        if (closeTestModal) {
+            closeTestModal.addEventListener('click', () => this.hideConnectionTest());
+        }
+        
+        const runTest = document.getElementById('run-test');
+        if (runTest) {
+            runTest.addEventListener('click', () => this.runConnectionTest());
+        }
     }
     
     attachPairEventListeners() {
@@ -780,6 +875,9 @@ class SuperTrendDashboard {
         
         // Update selected pair
         this.selectedPair = symbol;
+        
+        // Clear price format cache for new symbol
+        this.priceFormatCache.clear();
         
         // Update UI
         this.updateElement('current-symbol', symbol);
@@ -881,18 +979,13 @@ class SuperTrendDashboard {
         }
     }
     
-    formatPrice(price) {
-        if (typeof price !== 'number') return '0.00000';
-        return price.toFixed(5);
-    }
-    
     formatCurrency(amount) {
-        if (typeof amount !== 'number') return '$0.00';
+        if (typeof amount !== 'number' || isNaN(amount)) return '$0.00';
         return `$${amount.toFixed(2)}`;
     }
     
     formatVolume(volume) {
-        if (typeof volume !== 'number') return '0';
+        if (typeof volume !== 'number' || isNaN(volume)) return '0';
         if (volume >= 1000000) {
             return `${(volume / 1000000).toFixed(1)}M`;
         } else if (volume >= 1000) {
@@ -902,9 +995,16 @@ class SuperTrendDashboard {
     }
     
     calculatePips(spread, symbol) {
-        // Simplified pip calculation
-        if (symbol.includes('JPY')) {
+        // Enhanced pip calculation
+        if (!symbol) return spread * 10000;
+        
+        const symbolUpper = symbol.toUpperCase();
+        if (symbolUpper.includes('JPY')) {
             return spread * 100; // JPY pairs have different pip calculation
+        } else if (symbolUpper.includes('XAU') || symbolUpper.includes('GOLD')) {
+            return spread * 10; // Gold has different pip calculation
+        } else if (symbolUpper.includes('BTC') || symbolUpper.includes('ETH')) {
+            return spread; // Crypto pairs use different calculation
         }
         return spread * 10000; // Standard pip calculation
     }
@@ -946,6 +1046,9 @@ class SuperTrendDashboard {
             this.chart.update();
         }
         
+        // Clear price format cache
+        this.priceFormatCache.clear();
+        
         // Reset to default pair
         this.selectPair('EURUSD');
         
@@ -965,6 +1068,67 @@ class SuperTrendDashboard {
         if (modal) {
             modal.classList.remove('hidden');
         }
+    }
+    
+    hideConnectionTest() {
+        const modal = document.getElementById('connection-test-modal');
+        if (modal) {
+            modal.classList.add('hidden');
+        }
+    }
+    
+    async runConnectionTest() {
+        const resultsElement = document.getElementById('test-results');
+        if (!resultsElement) return;
+        
+        resultsElement.innerHTML = `
+            <div class="text-center py-6">
+                <div class="animate-spin w-6 h-6 border-2 border-primary-500 border-t-transparent rounded-full mx-auto mb-3"></div>
+                <p class="text-gray-400 text-sm">Testing MT5 connection...</p>
+            </div>
+        `;
+        
+        try {
+            const response = await fetch('/api/test-connection', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            
+            if (response.ok) {
+                const data = await response.json();
+                this.displayTestResults(data);
+            } else {
+                throw new Error('Test request failed');
+            }
+        } catch (error) {
+            resultsElement.innerHTML = `
+                <div class="text-center py-6">
+                    <div class="text-red-500 mb-3">❌ Test Failed</div>
+                    <p class="text-gray-400 text-sm">${error.message}</p>
+                </div>
+            `;
+        }
+    }
+    
+    displayTestResults(data) {
+        const resultsElement = document.getElementById('test-results');
+        if (!resultsElement || !data.results) return;
+        
+        const results = Object.entries(data.results).map(([key, result]) => {
+            const icon = result.success ? '✅' : '❌';
+            const color = result.success ? 'text-green-400' : 'text-red-400';
+            return `
+                <div class="flex items-center justify-between p-3 glass rounded-lg">
+                    <span class="text-gray-300 text-sm">${key.replace(/_/g, ' ').toUpperCase()}</span>
+                    <div class="flex items-center space-x-2">
+                        <span class="${color} text-sm">${icon}</span>
+                        <span class="text-xs text-gray-400">${result.message}</span>
+                    </div>
+                </div>
+            `;
+        }).join('');
+        
+        resultsElement.innerHTML = results;
     }
     
     filterPairs(searchTerm) {
@@ -1012,7 +1176,7 @@ class SuperTrendDashboard {
 
 // Initialize dashboard when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('🚀 SuperTrend Pro MT5 Dashboard - Real-time Optimized Version');
+    console.log('🚀 SuperTrend Pro MT5 Dashboard - Enhanced Real-time Version');
     window.dashboard = new SuperTrendDashboard();
 });
 
@@ -1024,7 +1188,7 @@ document.addEventListener('visibilitychange', () => {
             window.dashboard.updateInterval = 2000; // Slower updates when hidden
         } else {
             console.log('📱 Page visible - resuming normal update frequency');
-            window.dashboard.updateInterval = 500; // Fast updates when visible
+            window.dashboard.updateInterval = 1000; // Fast updates when visible
         }
     }
 });
