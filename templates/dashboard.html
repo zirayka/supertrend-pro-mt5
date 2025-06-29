@@ -242,19 +242,21 @@
         .category-exotic { @apply bg-pink-500/20 text-pink-400; }
         .category-other { @apply bg-gray-500/20 text-gray-400; }
 
-        /* Compact layout optimizations */
-        .compact-spacing {
-            gap: 0.75rem;
+        /* Full width layout optimizations */
+        .full-width-container {
+            width: 100vw;
+            max-width: none;
+            margin: 0;
+            padding-left: 1rem;
+            padding-right: 1rem;
         }
         
-        .compact-padding {
-            padding: 0.75rem;
-        }
-        
-        /* Ensure single page view */
+        /* Ensure single page view with full width */
         body {
             height: 100vh;
             overflow: hidden;
+            margin: 0;
+            padding: 0;
         }
         
         main {
@@ -265,12 +267,39 @@
         .full-height {
             height: calc(100vh - 8rem);
         }
+
+        /* Enhanced grid for better space utilization */
+        .enhanced-grid {
+            display: grid;
+            grid-template-columns: 320px 1fr 350px;
+            gap: 1rem;
+            height: 100%;
+        }
+
+        @media (max-width: 1536px) {
+            .enhanced-grid {
+                grid-template-columns: 300px 1fr 320px;
+            }
+        }
+
+        @media (max-width: 1280px) {
+            .enhanced-grid {
+                grid-template-columns: 280px 1fr 300px;
+            }
+        }
+
+        @media (max-width: 1024px) {
+            .enhanced-grid {
+                grid-template-columns: 1fr;
+                grid-template-rows: auto auto auto;
+            }
+        }
     </style>
 </head>
 <body class="bg-gray-950 text-white h-screen gradient-bg overflow-hidden">
-    <!-- Compact Header with Glassmorphism -->
-    <header class="glass-dark sticky top-0 z-50 border-b border-white/10">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <!-- Full Width Header -->
+    <header class="glass-dark sticky top-0 z-50 border-b border-white/10 w-full">
+        <div class="full-width-container">
             <div class="flex items-center justify-between h-16">
                 <!-- Logo and Title -->
                 <div class="flex items-center space-x-3">
@@ -321,13 +350,13 @@
         </div>
     </header>
 
-    <!-- Main Dashboard Content - Optimized for Single Page -->
-    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 full-height">
-        <div class="grid grid-cols-1 xl:grid-cols-4 gap-4 h-full">
+    <!-- Full Width Main Dashboard Content -->
+    <main class="full-width-container py-4 full-height">
+        <div class="enhanced-grid">
             <!-- Left Column - Trading Pairs & Alerts -->
             <div class="space-y-4 h-full">
                 <!-- Compact Trading Pairs Panel -->
-                <div class="trading-card glass-dark rounded-xl compact-padding border border-white/10 h-3/5">
+                <div class="trading-card glass-dark rounded-xl p-3 border border-white/10 h-3/5">
                     <div class="flex items-center justify-between mb-4">
                         <div class="flex items-center space-x-2">
                             <div class="p-1.5 bg-blue-500/20 rounded-md">
@@ -397,7 +426,7 @@
                 </div>
 
                 <!-- Compact Trading Alerts -->
-                <div class="trading-card glass-dark rounded-xl compact-padding border border-white/10 h-2/5">
+                <div class="trading-card glass-dark rounded-xl p-3 border border-white/10 h-2/5">
                     <div class="flex items-center justify-between mb-3">
                         <div class="flex items-center space-x-2">
                             <div class="p-1.5 bg-yellow-500/20 rounded-md">
@@ -420,9 +449,9 @@
                 </div>
             </div>
             
-            <!-- Middle Column - Trading Chart and Analysis -->
-            <div class="xl:col-span-2 space-y-4 h-full">
-                <!-- Compact Price Chart Section -->
+            <!-- Middle Column - Trading Chart and Analysis (Expanded) -->
+            <div class="space-y-4 h-full">
+                <!-- Expanded Price Chart Section -->
                 <div class="trading-card glass-dark rounded-xl p-4 border border-white/10 h-3/5">
                     <div class="flex items-center justify-between mb-4">
                         <div class="flex items-center space-x-3">
@@ -448,33 +477,33 @@
                         </div>
                     </div>
                     
-                    <!-- Compact Market Data Grid -->
-                    <div class="grid grid-cols-4 gap-3 mb-4">
-                        <div class="glass rounded-lg p-3 text-center">
+                    <!-- Expanded Market Data Grid -->
+                    <div class="grid grid-cols-4 gap-4 mb-4">
+                        <div class="glass rounded-lg p-4 text-center">
                             <div class="text-gray-400 text-xs mb-1">Bid</div>
-                            <div id="bid-price" class="text-danger-500 font-bold text-lg">1.08485</div>
+                            <div id="bid-price" class="text-danger-500 font-bold text-xl">1.08485</div>
                         </div>
-                        <div class="glass rounded-lg p-3 text-center">
+                        <div class="glass rounded-lg p-4 text-center">
                             <div class="text-gray-400 text-xs mb-1">Ask</div>
-                            <div id="ask-price" class="text-primary-500 font-bold text-lg">1.08515</div>
+                            <div id="ask-price" class="text-primary-500 font-bold text-xl">1.08515</div>
                         </div>
-                        <div class="glass rounded-lg p-3 text-center">
+                        <div class="glass rounded-lg p-4 text-center">
                             <div class="text-gray-400 text-xs mb-1">Spread</div>
-                            <div id="spread" class="text-yellow-400 font-bold text-sm">3.0 pips</div>
+                            <div id="spread" class="text-yellow-400 font-bold text-lg">3.0 pips</div>
                         </div>
-                        <div class="glass rounded-lg p-3 text-center">
+                        <div class="glass rounded-lg p-4 text-center">
                             <div class="text-gray-400 text-xs mb-1">Volume</div>
-                            <div id="volume" class="text-white font-bold text-sm">1.2M</div>
+                            <div id="volume" class="text-white font-bold text-lg">1.2M</div>
                         </div>
                     </div>
                     
-                    <!-- Compact Chart Container -->
-                    <div class="chart-container h-64">
+                    <!-- Expanded Chart Container -->
+                    <div class="chart-container h-80">
                         <canvas id="price-chart" class="w-full h-full"></canvas>
                     </div>
                 </div>
                 
-                <!-- Compact SuperTrend Analysis -->
+                <!-- Expanded SuperTrend Analysis -->
                 <div class="trading-card glass-dark rounded-xl p-4 border border-white/10 h-2/5">
                     <div class="flex items-center justify-between mb-4">
                         <div class="flex items-center space-x-3">
@@ -491,77 +520,90 @@
                         </div>
                     </div>
                     
-                    <!-- Compact Trend Metrics -->
-                    <div class="grid grid-cols-3 gap-4 mb-4">
+                    <!-- Expanded Trend Metrics -->
+                    <div class="grid grid-cols-3 gap-6 mb-4">
                         <!-- Trend Strength -->
-                        <div class="glass rounded-lg p-3">
-                            <div class="flex items-center justify-between mb-2">
-                                <h3 class="text-white font-semibold text-sm">Strength</h3>
-                                <div id="trend-strength-value" class="text-primary-500 font-bold text-sm">78.5%</div>
+                        <div class="glass rounded-lg p-4">
+                            <div class="flex items-center justify-between mb-3">
+                                <h3 class="text-white font-semibold text-sm">Trend Strength</h3>
+                                <div id="trend-strength-value" class="text-primary-500 font-bold text-lg">78.5%</div>
                             </div>
-                            <div class="bg-gray-700 rounded-full h-2 overflow-hidden">
+                            <div class="bg-gray-700 rounded-full h-3 overflow-hidden">
                                 <div id="trend-strength-bar" class="h-full gradient-primary transition-all duration-1000 ease-out" style="width: 78.5%"></div>
+                            </div>
+                            <div class="flex justify-between text-xs text-gray-400 mt-2">
+                                <span>Weak</span>
+                                <span>Strong</span>
                             </div>
                         </div>
                         
                         <!-- ATR Value -->
-                        <div class="glass rounded-lg p-3">
-                            <div class="flex items-center justify-between mb-2">
-                                <h3 class="text-white font-semibold text-sm">ATR</h3>
-                                <div id="atr-value" class="text-blue-400 font-bold text-sm">0.00125</div>
+                        <div class="glass rounded-lg p-4">
+                            <div class="flex items-center justify-between mb-3">
+                                <h3 class="text-white font-semibold text-sm">ATR (Volatility)</h3>
+                                <div id="atr-value" class="text-blue-400 font-bold text-lg">0.00125</div>
                             </div>
                             <div class="text-gray-400 text-xs">
                                 <div class="flex justify-between">
                                     <span>Period:</span>
                                     <span id="atr-period-display">20</span>
                                 </div>
+                                <div class="flex justify-between mt-1">
+                                    <span>Multiplier:</span>
+                                    <span id="multiplier-display">2.0</span>
+                                </div>
                             </div>
                         </div>
                         
                         <!-- RSI Analysis -->
-                        <div class="glass rounded-lg p-3">
-                            <div class="flex items-center justify-between mb-2">
-                                <h3 class="text-white font-semibold text-sm">RSI</h3>
-                                <div id="rsi-value" class="text-yellow-400 font-bold text-sm">65.4</div>
+                        <div class="glass rounded-lg p-4">
+                            <div class="flex items-center justify-between mb-3">
+                                <h3 class="text-white font-semibold text-sm">RSI Filter</h3>
+                                <div id="rsi-value" class="text-yellow-400 font-bold text-lg">65.4</div>
                             </div>
-                            <div class="bg-gray-700 rounded-full h-2 overflow-hidden">
+                            <div class="bg-gray-700 rounded-full h-3 overflow-hidden">
                                 <div id="rsi-bar" class="h-full bg-gradient-to-r from-red-500 via-yellow-500 to-green-500 transition-all duration-1000" style="width: 65.4%"></div>
+                            </div>
+                            <div class="flex justify-between text-xs text-gray-400 mt-2">
+                                <span>30</span>
+                                <span>50</span>
+                                <span>70</span>
                             </div>
                         </div>
                     </div>
                     
-                    <!-- Compact Signal Status -->
-                    <div class="glass rounded-lg p-3">
-                        <h3 class="text-white font-semibold mb-3 text-sm">Trading Signals</h3>
-                        <div class="grid grid-cols-3 gap-3">
-                            <div class="flex items-center justify-between p-2 bg-gray-800/50 rounded-md">
-                                <div class="flex items-center space-x-2">
-                                    <div id="buy-signal-indicator" class="w-3 h-3 rounded-full border-2 border-gray-600"></div>
-                                    <span class="text-gray-300 text-xs">Buy</span>
+                    <!-- Expanded Signal Status -->
+                    <div class="glass rounded-lg p-4">
+                        <h3 class="text-white font-semibold mb-4 text-sm">Trading Signals</h3>
+                        <div class="grid grid-cols-3 gap-4">
+                            <div class="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg">
+                                <div class="flex items-center space-x-3">
+                                    <div id="buy-signal-indicator" class="w-4 h-4 rounded-full border-2 border-gray-600"></div>
+                                    <span class="text-gray-300 text-sm">Buy Signal</span>
                                 </div>
-                                <div id="buy-signal-strength" class="text-xs text-gray-400">--</div>
+                                <div id="buy-signal-strength" class="text-sm text-gray-400">--</div>
                             </div>
                             
-                            <div class="flex items-center justify-between p-2 bg-gray-800/50 rounded-md">
-                                <div class="flex items-center space-x-2">
-                                    <div id="sell-signal-indicator" class="w-3 h-3 rounded-full border-2 border-gray-600"></div>
-                                    <span class="text-gray-300 text-xs">Sell</span>
+                            <div class="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg">
+                                <div class="flex items-center space-x-3">
+                                    <div id="sell-signal-indicator" class="w-4 h-4 rounded-full border-2 border-gray-600"></div>
+                                    <span class="text-gray-300 text-sm">Sell Signal</span>
                                 </div>
-                                <div id="sell-signal-strength" class="text-xs text-gray-400">--</div>
+                                <div id="sell-signal-strength" class="text-sm text-gray-400">--</div>
                             </div>
                             
-                            <div class="flex items-center justify-between p-2 bg-gray-800/50 rounded-md">
-                                <div class="flex items-center space-x-2">
-                                    <div id="strong-signal-indicator" class="w-3 h-3 rounded-full border-2 border-gray-600"></div>
-                                    <span class="text-gray-300 text-xs">Strong</span>
+                            <div class="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg">
+                                <div class="flex items-center space-x-3">
+                                    <div id="strong-signal-indicator" class="w-4 h-4 rounded-full border-2 border-gray-600"></div>
+                                    <span class="text-gray-300 text-sm">Strong Signal</span>
                                 </div>
-                                <div id="strong-signal-confidence" class="text-xs text-gray-400">--</div>
+                                <div id="strong-signal-confidence" class="text-sm text-gray-400">--</div>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Compact Settings Panel -->
+                <!-- Settings Panel -->
                 <div id="settings-panel" class="trading-card glass-dark rounded-xl p-4 border border-white/10 hidden animate-slide-up">
                     <div class="flex items-center justify-between mb-4">
                         <div class="flex items-center space-x-2">
@@ -607,10 +649,10 @@
                 </div>
             </div>
             
-            <!-- Right Column - MT5 Account -->
+            <!-- Right Column - MT5 Account (Expanded) -->
             <div class="space-y-4 h-full">
-                <!-- Compact MT5 Connection & Account -->
-                <div class="trading-card glass-dark rounded-xl compact-padding border border-white/10 h-full">
+                <!-- Expanded MT5 Connection & Account -->
+                <div class="trading-card glass-dark rounded-xl p-4 border border-white/10 h-full">
                     <div class="flex items-center justify-between mb-4">
                         <div class="flex items-center space-x-2">
                             <div class="p-1.5 bg-green-500/20 rounded-md">
@@ -623,17 +665,17 @@
                         </button>
                     </div>
                     
-                    <div id="mt5-status-content" class="space-y-3">
-                        <!-- Compact Connection Status -->
-                        <div class="glass rounded-lg p-3">
-                            <div class="flex items-center justify-between mb-3">
+                    <div id="mt5-status-content" class="space-y-4">
+                        <!-- Expanded Connection Status -->
+                        <div class="glass rounded-lg p-4">
+                            <div class="flex items-center justify-between mb-4">
                                 <h3 class="text-white font-semibold text-sm">Connection Status</h3>
-                                <div id="connection-type-badge" class="px-2 py-1 rounded-full text-xs font-medium bg-yellow-500/20 text-yellow-400">
+                                <div id="connection-type-badge" class="px-3 py-1 rounded-full text-xs font-medium bg-yellow-500/20 text-yellow-400">
                                     Connecting...
                                 </div>
                             </div>
                             
-                            <div class="space-y-2 text-xs">
+                            <div class="space-y-3 text-sm">
                                 <div class="flex justify-between items-center">
                                     <span class="text-gray-400">Server:</span>
                                     <span id="mt5-server" class="text-white font-medium">Connecting...</span>
@@ -653,33 +695,33 @@
                             </div>
                         </div>
                         
-                        <!-- Compact Account Balance -->
-                        <div class="glass rounded-lg p-3">
-                            <h3 class="text-white font-semibold mb-3 text-sm">Account Balance</h3>
-                            <div class="space-y-3">
+                        <!-- Expanded Account Balance -->
+                        <div class="glass rounded-lg p-4">
+                            <h3 class="text-white font-semibold mb-4 text-sm">Account Balance</h3>
+                            <div class="space-y-4">
                                 <div class="text-center">
-                                    <div id="account-balance" class="text-2xl font-bold text-white mb-1">$0.00</div>
-                                    <div id="balance-change" class="text-xs text-gray-400">+0.00%</div>
+                                    <div id="account-balance" class="text-3xl font-bold text-white mb-2">$0.00</div>
+                                    <div id="balance-change" class="text-sm text-gray-400">+0.00%</div>
                                 </div>
                                 
-                                <div class="grid grid-cols-2 gap-3 text-xs">
+                                <div class="grid grid-cols-2 gap-4 text-sm">
                                     <div>
                                         <span class="text-gray-400 block">Equity</span>
-                                        <span id="account-equity" class="text-white font-semibold">$0.00</span>
+                                        <span id="account-equity" class="text-white font-semibold text-lg">$0.00</span>
                                     </div>
                                     <div>
                                         <span class="text-gray-400 block">Free Margin</span>
-                                        <span id="account-free-margin" class="text-primary-500 font-semibold">$0.00</span>
+                                        <span id="account-free-margin" class="text-primary-500 font-semibold text-lg">$0.00</span>
                                     </div>
                                 </div>
                                 
-                                <!-- Compact Margin Level -->
+                                <!-- Expanded Margin Level -->
                                 <div>
-                                    <div class="flex justify-between text-xs mb-1">
+                                    <div class="flex justify-between text-sm mb-2">
                                         <span class="text-gray-400">Margin Level</span>
                                         <span id="margin-level-percent" class="text-white font-medium">0%</span>
                                     </div>
-                                    <div class="bg-gray-700 rounded-full h-2 overflow-hidden">
+                                    <div class="bg-gray-700 rounded-full h-3 overflow-hidden">
                                         <div id="margin-level-bar" class="h-full gradient-primary transition-all duration-1000" style="width: 0%"></div>
                                     </div>
                                     <div class="flex justify-between text-xs text-gray-500 mt-1">
@@ -690,21 +732,40 @@
                             </div>
                         </div>
                         
-                        <!-- Compact Trading Statistics -->
-                        <div class="glass rounded-lg p-3">
-                            <h3 class="text-white font-semibold mb-3 text-sm">Trading Statistics</h3>
-                            <div class="grid grid-cols-2 gap-2">
-                                <div class="text-center p-2 bg-gray-800/50 rounded-md">
-                                    <div id="open-positions" class="text-lg font-bold text-blue-400">0</div>
+                        <!-- Expanded Trading Statistics -->
+                        <div class="glass rounded-lg p-4">
+                            <h3 class="text-white font-semibold mb-4 text-sm">Trading Statistics</h3>
+                            <div class="grid grid-cols-2 gap-3">
+                                <div class="text-center p-3 bg-gray-800/50 rounded-lg">
+                                    <div id="open-positions" class="text-2xl font-bold text-blue-400">0</div>
                                     <div class="text-gray-400 text-xs">Open Positions</div>
                                 </div>
-                                <div class="text-center p-2 bg-gray-800/50 rounded-md">
-                                    <div id="pending-orders" class="text-lg font-bold text-yellow-400">0</div>
+                                <div class="text-center p-3 bg-gray-800/50 rounded-lg">
+                                    <div id="pending-orders" class="text-2xl font-bold text-yellow-400">0</div>
                                     <div class="text-gray-400 text-xs">Pending Orders</div>
                                 </div>
-                                <div class="text-center p-2 bg-gray-800/50 rounded-md col-span-2">
-                                    <div id="daily-pnl" class="text-lg font-bold text-primary-500">+$0.00</div>
+                                <div class="text-center p-3 bg-gray-800/50 rounded-lg col-span-2">
+                                    <div id="daily-pnl" class="text-2xl font-bold text-primary-500">+$0.00</div>
                                     <div class="text-gray-400 text-xs">Daily P&L</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Additional Trading Info -->
+                        <div class="glass rounded-lg p-4">
+                            <h3 class="text-white font-semibold mb-4 text-sm">Market Hours</h3>
+                            <div class="space-y-2 text-sm">
+                                <div class="flex justify-between items-center">
+                                    <span class="text-gray-400">Market Status:</span>
+                                    <span class="text-green-400 font-medium">Open</span>
+                                </div>
+                                <div class="flex justify-between items-center">
+                                    <span class="text-gray-400">Session:</span>
+                                    <span class="text-white font-medium">London</span>
+                                </div>
+                                <div class="flex justify-between items-center">
+                                    <span class="text-gray-400">Next Close:</span>
+                                    <span class="text-gray-300">17:00 EST</span>
                                 </div>
                             </div>
                         </div>
@@ -714,9 +775,9 @@
         </div>
     </main>
 
-    <!-- Compact Status Bar -->
-    <footer class="fixed bottom-0 left-0 right-0 glass-dark border-t border-white/10 px-4 py-2 z-40">
-        <div class="max-w-7xl mx-auto flex items-center justify-between text-xs">
+    <!-- Full Width Status Bar -->
+    <footer class="fixed bottom-0 left-0 right-0 glass-dark border-t border-white/10 px-4 py-2 z-40 w-full">
+        <div class="full-width-container flex items-center justify-between text-xs">
             <div class="flex items-center space-x-6">
                 <div class="flex items-center space-x-2">
                     <div id="status-dot" class="w-2 h-2 bg-primary-500 rounded-full animate-pulse"></div>
@@ -784,7 +845,7 @@
         
         // Initialize dashboard
         document.addEventListener('DOMContentLoaded', () => {
-            console.log('🚀 SuperTrend Pro MT5 Dashboard - Single Page Optimized');
+            console.log('🚀 SuperTrend Pro MT5 Dashboard - Full Width Optimized');
         });
     </script>
 </body>
