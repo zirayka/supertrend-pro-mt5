@@ -9,6 +9,8 @@ export class MT5ConnectionManager {
   private subscribers: Map<string, (data: any) => void> = new Map();
   private isWebContainer = false;
   private connectionMode: 'websocket' | 'file' | 'demo' = 'demo';
+  private connectionAttempts = 0;
+  private maxConnectionAttempts = 3;
 
   constructor(private serverUrl?: string) {
     // Detect if running in WebContainer environment
@@ -28,17 +30,17 @@ export class MT5ConnectionManager {
   private async initializeConnections() {
     console.log('🔍 Initializing MT5 connections...');
     
-    // Try WebSocket connection first
-    await this.tryWebSocketConnection();
+    // Try WebSocket connection first (but don't wait too long)
+    const wsConnected = await this.tryWebSocketConnection();
     
     // If WebSocket fails, try file-based connection
-    if (!this.connectionStatus.isConnected) {
-      await this.tryFileConnection();
-    }
-    
-    // If both fail, we'll stay in demo mode
-    if (!this.connectionStatus.isConnected) {
-      console.log('⚠️ No MT5 connection available, staying in demo mode');
+    if (!wsConnected) {
+      const fileConnected = await this.tryFileConnection();
+      
+      if (!fileConnected) {
+        console.log('⚠️ No MT5 connection available, staying in demo mode');
+        this.connectionMode = 'demo';
+      }
     }
   }
 
@@ -52,8 +54,11 @@ export class MT5ConnectionManager {
       // Set up event forwarding
       this.setupTerminalConnectionEvents();
       
-      // Test connection with timeout
-      const connected = await this.terminalConnection.testConnection();
+      // Test connection with shorter timeout for faster fallback
+      const connected = await Promise.race([
+        this.terminalConnection.testConnection(),
+        new Promise<boolean>(resolve => setTimeout(() => resolve(false), 3000)) // 3 second timeout
+      ]);
       
       if (connected) {
         console.log('✅ WebSocket connection to MT5 Terminal successful');
@@ -61,8 +66,10 @@ export class MT5ConnectionManager {
         return true;
       } else {
         console.log('❌ WebSocket connection to MT5 Terminal failed');
-        this.terminalConnection.disconnect();
-        this.terminalConnection = null;
+        if (this.terminalConnection) {
+          this.terminalConnection.disconnect();
+          this.terminalConnection = null;
+        }
         return false;
       }
     } catch (error) {
@@ -78,6 +85,14 @@ export class MT5ConnectionManager {
   private async tryFileConnection(): Promise<boolean> {
     try {
       console.log('📁 Attempting file-based connection to MT5...');
+      
+      // First check if file server is running
+      const serverCheck = await this.checkFileServer();
+      if (!serverCheck) {
+        console.log('❌ MT5 file server not running on port 3001');
+        console.log('💡 Start the file server with: npm run mt5-server');
+        return false;
+      }
       
       this.fileReader = new MT5FileReader(2000); // Check every 2 seconds
       
@@ -114,6 +129,18 @@ export class MT5ConnectionManager {
         this.fileReader.stop();
         this.fileReader = null;
       }
+      return false;
+    }
+  }
+
+  private async checkFileServer(): Promise<boolean> {
+    try {
+      const response = await fetch('http://localhost:3001/health', {
+        method: 'GET',
+        signal: AbortSignal.timeout(2000)
+      });
+      return response.ok;
+    } catch (error) {
       return false;
     }
   }

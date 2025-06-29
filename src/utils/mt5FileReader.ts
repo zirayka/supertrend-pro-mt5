@@ -5,7 +5,8 @@ export class MT5FileReader {
   private fileCheckInterval: NodeJS.Timeout | null = null;
   private lastFileModifications: Map<string, number> = new Map();
   private isActive = false;
-  private baseUrl = '';
+  private consecutiveErrors = 0;
+  private maxConsecutiveErrors = 5;
 
   constructor(private checkInterval: number = 2000) {
     // Detect if running in WebContainer environment
@@ -52,17 +53,26 @@ export class MT5FileReader {
       // Check for symbols list
       await this.checkSymbolsList();
       
+      // Reset error counter on successful check
+      this.consecutiveErrors = 0;
+      
     } catch (error) {
-      console.error('Error checking MT5 files:', error);
+      this.consecutiveErrors++;
+      console.error(`Error checking MT5 files (${this.consecutiveErrors}/${this.maxConsecutiveErrors}):`, error);
+      
+      // Stop monitoring if too many consecutive errors
+      if (this.consecutiveErrors >= this.maxConsecutiveErrors) {
+        console.warn('🛑 Too many consecutive errors, stopping file monitoring');
+        this.stop();
+      }
     }
   }
 
   private async checkTickData() {
     const filePaths = [
-      '/api/mt5-files/tick_data.json',
-      '/mt5-files/tick_data.json',
-      '/files/tick_data.json',
-      '/tick_data.json'
+      'http://localhost:3001/api/mt5-files/tick_data.json',
+      'http://localhost:3001/files/tick_data.json',
+      'http://localhost:3001/tick_data.json'
     ];
 
     for (const filePath of filePaths) {
@@ -74,15 +84,27 @@ export class MT5FileReader {
             'Cache-Control': 'no-cache, no-store, must-revalidate',
             'Pragma': 'no-cache',
             'Expires': '0'
-          }
+          },
+          signal: AbortSignal.timeout(5000) // 5 second timeout
         });
         
         if (response.ok) {
+          const contentType = response.headers.get('content-type');
+          if (!contentType || !contentType.includes('application/json')) {
+            console.warn(`⚠️ Expected JSON but got ${contentType} from ${filePath}`);
+            continue;
+          }
+
           const lastModified = response.headers.get('last-modified') || response.headers.get('etag') || Date.now().toString();
           const fileKey = 'tick_data';
           
           if (this.hasFileChanged(fileKey, lastModified)) {
             const text = await response.text();
+            
+            if (!text || text.trim().length === 0) {
+              console.warn('⚠️ Received empty tick data file');
+              continue;
+            }
             
             // Handle both single JSON object and newline-separated JSON
             const lines = text.trim().split('\n');
@@ -105,7 +127,8 @@ export class MT5FileReader {
                 this.notifySubscribers('tick', tick);
               }
             } catch (parseError) {
-              console.warn('Failed to parse tick data:', parseError);
+              console.warn('Failed to parse tick data JSON:', parseError);
+              console.warn('Raw data:', lastLine.substring(0, 100) + '...');
             }
           }
           break; // Found working path
@@ -119,10 +142,9 @@ export class MT5FileReader {
 
   private async checkOHLCData() {
     const filePaths = [
-      '/api/mt5-files/ohlc_data.json',
-      '/mt5-files/ohlc_data.json',
-      '/files/ohlc_data.json',
-      '/ohlc_data.json'
+      'http://localhost:3001/api/mt5-files/ohlc_data.json',
+      'http://localhost:3001/files/ohlc_data.json',
+      'http://localhost:3001/ohlc_data.json'
     ];
 
     for (const filePath of filePaths) {
@@ -134,15 +156,26 @@ export class MT5FileReader {
             'Cache-Control': 'no-cache, no-store, must-revalidate',
             'Pragma': 'no-cache',
             'Expires': '0'
-          }
+          },
+          signal: AbortSignal.timeout(5000)
         });
         
         if (response.ok) {
+          const contentType = response.headers.get('content-type');
+          if (!contentType || !contentType.includes('application/json')) {
+            continue;
+          }
+
           const lastModified = response.headers.get('last-modified') || response.headers.get('etag') || Date.now().toString();
           const fileKey = 'ohlc_data';
           
           if (this.hasFileChanged(fileKey, lastModified)) {
             const text = await response.text();
+            
+            if (!text || text.trim().length === 0) {
+              continue;
+            }
+            
             const lines = text.trim().split('\n');
             const lastLine = lines[lines.length - 1];
             
@@ -163,7 +196,7 @@ export class MT5FileReader {
                 this.notifySubscribers('ohlc', ohlc);
               }
             } catch (parseError) {
-              console.warn('Failed to parse OHLC data:', parseError);
+              console.warn('Failed to parse OHLC data JSON:', parseError);
             }
           }
           break;
@@ -176,10 +209,9 @@ export class MT5FileReader {
 
   private async checkAccountInfo() {
     const filePaths = [
-      '/api/mt5-files/account_info.json',
-      '/mt5-files/account_info.json',
-      '/files/account_info.json',
-      '/account_info.json'
+      'http://localhost:3001/api/mt5-files/account_info.json',
+      'http://localhost:3001/files/account_info.json',
+      'http://localhost:3001/account_info.json'
     ];
 
     for (const filePath of filePaths) {
@@ -191,15 +223,26 @@ export class MT5FileReader {
             'Cache-Control': 'no-cache, no-store, must-revalidate',
             'Pragma': 'no-cache',
             'Expires': '0'
-          }
+          },
+          signal: AbortSignal.timeout(5000)
         });
         
         if (response.ok) {
+          const contentType = response.headers.get('content-type');
+          if (!contentType || !contentType.includes('application/json')) {
+            continue;
+          }
+
           const lastModified = response.headers.get('last-modified') || response.headers.get('etag') || Date.now().toString();
           const fileKey = 'account_info';
           
           if (this.hasFileChanged(fileKey, lastModified)) {
             const text = await response.text();
+            
+            if (!text || text.trim().length === 0) {
+              continue;
+            }
+            
             const lines = text.trim().split('\n');
             const lastLine = lines[lines.length - 1];
             
@@ -222,7 +265,7 @@ export class MT5FileReader {
                 this.notifySubscribers('connection', connection);
               }
             } catch (parseError) {
-              console.warn('Failed to parse account info:', parseError);
+              console.warn('Failed to parse account info JSON:', parseError);
             }
           }
           break;
@@ -235,10 +278,9 @@ export class MT5FileReader {
 
   private async checkSymbolsList() {
     const filePaths = [
-      '/api/mt5-files/symbols_list.json',
-      '/mt5-files/symbols_list.json',
-      '/files/symbols_list.json',
-      '/symbols_list.json'
+      'http://localhost:3001/api/mt5-files/symbols_list.json',
+      'http://localhost:3001/files/symbols_list.json',
+      'http://localhost:3001/symbols_list.json'
     ];
 
     for (const filePath of filePaths) {
@@ -250,15 +292,26 @@ export class MT5FileReader {
             'Cache-Control': 'no-cache, no-store, must-revalidate',
             'Pragma': 'no-cache',
             'Expires': '0'
-          }
+          },
+          signal: AbortSignal.timeout(5000)
         });
         
         if (response.ok) {
+          const contentType = response.headers.get('content-type');
+          if (!contentType || !contentType.includes('application/json')) {
+            continue;
+          }
+
           const lastModified = response.headers.get('last-modified') || response.headers.get('etag') || Date.now().toString();
           const fileKey = 'symbols_list';
           
           if (this.hasFileChanged(fileKey, lastModified)) {
             const text = await response.text();
+            
+            if (!text || text.trim().length === 0) {
+              continue;
+            }
+            
             const lines = text.trim().split('\n');
             const lastLine = lines[lines.length - 1];
             
@@ -281,7 +334,7 @@ export class MT5FileReader {
                 this.notifySubscribers('symbols', symbols);
               }
             } catch (parseError) {
-              console.warn('Failed to parse symbols list:', parseError);
+              console.warn('Failed to parse symbols list JSON:', parseError);
             }
           }
           break;
@@ -365,15 +418,17 @@ export class MT5FileReader {
     
     for (const fileName of testFiles) {
       const filePaths = [
-        `/api/mt5-files/${fileName}`,
-        `/mt5-files/${fileName}`,
-        `/files/${fileName}`,
-        `/${fileName}`
+        `http://localhost:3001/api/mt5-files/${fileName}`,
+        `http://localhost:3001/files/${fileName}`,
+        `http://localhost:3001/${fileName}`
       ];
       
       for (const filePath of filePaths) {
         try {
-          const response = await fetch(filePath, { method: 'HEAD' });
+          const response = await fetch(filePath, { 
+            method: 'HEAD',
+            signal: AbortSignal.timeout(3000)
+          });
           if (response.ok) {
             foundFiles.push(filePath);
             break;
@@ -390,7 +445,7 @@ export class MT5FileReader {
       success,
       message: success 
         ? `Found ${foundFiles.length} MT5 data files`
-        : 'No MT5 data files accessible. Check if MT5 EA is running and writing files.',
+        : 'No MT5 data files accessible. Make sure the MT5 file server is running on port 3001.',
       foundFiles
     };
   }
