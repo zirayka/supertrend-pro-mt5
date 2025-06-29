@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ title }}</title>
+    
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Chart.js for charts -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.js"></script>
+    
+    <style>
+        /* Custom styles */
+        .glass {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .animate-pulse-slow {
+            animation: pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        
+        .gradient-bg {
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+        }
+    </style>
+</head>
+<body class="bg-gray-950 text-white min-h-screen gradient-bg">
+    <!-- Header -->
+    <header class="bg-gray-900 border-b border-gray-800 sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="flex items-center justify-between h-16">
+                <div class="flex items-center">
+                    <i data-lucide="bar-chart-3" class="w-8 h-8 text-emerald-400 mr-3"></i>
+                    <div>
+                        <h1 class="text-xl font-bold">SuperTrend Pro MT5</h1>
+                        <p class="text-sm text-gray-400">Python Trading Dashboard</p>
+                    </div>
+                </div>
+                
+                <div class="flex items-center space-x-4">
+                    <!-- Connection Status -->
+                    <div id="connection-status" class="flex items-center px-3 py-1 rounded-full text-sm bg-red-500/20 text-red-400">
+                        <i data-lucide="wifi-off" class="w-4 h-4 mr-2"></i>
+                        <span>Connecting...</span>
+                    </div>
+                    
+                    <!-- Controls -->
+                    <button id="settings-btn" class="p-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-300 transition-colors">
+                        <i data-lucide="settings" class="w-5 h-5"></i>
+                    </button>
+                    
+                    <button id="play-pause-btn" class="flex items-center px-4 py-2 rounded-lg font-medium bg-emerald-500 hover:bg-emerald-600 text-white transition-colors">
+                        <i data-lucide="pause" class="w-4 h-4 mr-2"></i>
+                        <span>Pause</span>
+                    </button>
+                    
+                    <button id="reset-btn" class="flex items-center px-4 py-2 rounded-lg font-medium bg-gray-700 hover:bg-gray-600 text-white transition-colors">
+                        <i data-lucide="rotate-ccw" class="w-4 h-4 mr-2"></i>
+                        Reset
+                    </button>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Content -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div class="grid grid-cols-1 xl:grid-cols-4 gap-8">
+            <!-- Left Column - Chart and Analysis -->
+            <div class="xl:col-span-3 space-y-8">
+                <!-- Trading Chart -->
+                <div class="bg-gray-900 rounded-xl p-6 border border-gray-800">
+                    <div class="flex items-center justify-between mb-6">
+                        <div class="flex items-center">
+                            <i data-lucide="activity" class="w-5 h-5 text-blue-400 mr-2"></i>
+                            <h2 class="text-xl font-bold text-white">Live Market Data</h2>
+                            <span id="current-symbol" class="ml-2 px-2 py-1 bg-blue-500/20 text-blue-400 rounded text-sm">EURUSD</span>
+                        </div>
+                        <div class="text-right">
+                            <div id="current-price" class="text-2xl font-bold text-white">1.0850</div>
+                            <div id="price-change" class="flex items-center text-emerald-400">
+                                <i data-lucide="trending-up" class="w-4 h-4 mr-1"></i>
+                                <span>+0.12%</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Price Display -->
+                    <div class="bg-gray-800 rounded-lg p-4 mb-4">
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                            <div>
+                                <span class="text-gray-400">Bid</span>
+                                <div id="bid-price" class="text-red-400 font-bold text-lg">1.0848</div>
+                            </div>
+                            <div>
+                                <span class="text-gray-400">Ask</span>
+                                <div id="ask-price" class="text-emerald-400 font-bold text-lg">1.0852</div>
+                            </div>
+                            <div>
+                                <span class="text-gray-400">Spread</span>
+                                <div id="spread" class="text-yellow-400 font-medium">1.5 pips</div>
+                            </div>
+                            <div>
+                                <span class="text-gray-400">Volume</span>
+                                <div id="volume" class="text-white font-medium">125K</div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Chart Container -->
+                    <div class="bg-gray-800 rounded-lg p-4 h-96">
+                        <canvas id="price-chart"></canvas>
+                    </div>
+                </div>
+                
+                <!-- Trend Analysis -->
+                <div class="bg-gray-900 rounded-xl p-6 border border-gray-800">
+                    <div class="flex items-center mb-6">
+                        <i data-lucide="activity" class="w-5 h-5 text-blue-400 mr-2"></i>
+                        <h2 class="text-xl font-bold text-white">SuperTrend Analysis</h2>
+                    </div>
+                    
+                    <!-- Current Trend -->
+                    <div class="bg-gray-800 rounded-lg p-4 mb-6">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-white font-medium">Current Trend</h3>
+                            <div id="trend-indicator" class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-emerald-500/20 text-emerald-400">
+                                <i data-lucide="trending-up" class="w-4 h-4 mr-1"></i>
+                                BULLISH
+                            </div>
+                        </div>
+                        
+                        <div class="grid grid-cols-2 gap-4">
+                            <div>
+                                <span class="text-gray-400 text-sm">Trend Strength</span>
+                                <div id="trend-strength" class="text-lg font-bold text-emerald-400">75.2% - Strong</div>
+                            </div>
+                            <div>
+                                <span class="text-gray-400 text-sm">ATR</span>
+                                <div id="atr-value" class="text-white text-lg font-bold">0.00125</div>
+                            </div>
+                        </div>
+                        
+                        <!-- Trend Strength Bar -->
+                        <div class="mt-4">
+                            <div class="bg-gray-700 rounded-full h-2">
+                                <div id="trend-strength-bar" class="h-2 rounded-full bg-emerald-400 transition-all duration-500" style="width: 75%"></div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- RSI Analysis -->
+                    <div class="bg-gray-800 rounded-lg p-4 mb-6">
+                        <h3 class="text-white font-medium mb-3">RSI Analysis</h3>
+                        <div class="flex items-center justify-between">
+                            <span class="text-gray-400">Current RSI</span>
+                            <div id="rsi-value" class="font-bold text-white">65.4</div>
+                        </div>
+                        
+                        <div class="mt-3 bg-gray-700 rounded-full h-2">
+                            <div id="rsi-bar" class="h-2 rounded-full bg-blue-400 transition-all duration-500" style="width: 65%"></div>
+                        </div>
+                        
+                        <div class="flex justify-between text-xs text-gray-400 mt-1">
+                            <span>Oversold (30)</span>
+                            <span>Neutral (50)</span>
+                            <span>Overbought (70)</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Signal Status -->
+                    <div class="bg-gray-800 rounded-lg p-4">
+                        <h3 class="text-white font-medium mb-3">Signal Status</h3>
+                        <div class="space-y-3">
+                            <div class="flex items-center justify-between">
+                                <span class="text-gray-400">Buy Signal</span>
+                                <div id="buy-signal" class="flex items-center">
+                                    <div class="w-5 h-5 rounded-full border-2 border-gray-600"></div>
+                                </div>
+                            </div>
+                            
+                            <div class="flex items-center justify-between">
+                                <span class="text-gray-400">Sell Signal</span>
+                                <div id="sell-signal" class="flex items-center">
+                                    <div class="w-5 h-5 rounded-full border-2 border-gray-600"></div>
+                                </div>
+                            </div>
+                            
+                            <div class="flex items-center justify-between">
+                                <span class="text-gray-400">Strong Signal</span>
+                                <div id="strong-signal" class="flex items-center">
+                                    <div class="w-5 h-5 rounded-full border-2 border-gray-600"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Right Column - Controls and Status -->
+            <div class="space-y-8">
+                <!-- Pair Selector -->
+                <div class="bg-gray-900 rounded-xl p-6 border border-gray-800">
+                    <div class="flex items-center justify-between mb-6">
+                        <div class="flex items-center">
+                            <i data-lucide="bar-chart-3" class="w-5 h-5 text-blue-400 mr-2"></i>
+                            <h2 class="text-xl font-bold text-white">Trading Pairs</h2>
+                        </div>
+                    </div>
+                    
+                    <div class="space-y-4">
+                        <select id="pair-selector" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-blue-500">
+                            <option value="EURUSD">EURUSD - Euro vs US Dollar</option>
+                            <option value="GBPUSD">GBPUSD - British Pound vs US Dollar</option>
+                            <option value="USDJPY">USDJPY - US Dollar vs Japanese Yen</option>
+                            <option value="XAUUSD">XAUUSD - Gold vs US Dollar</option>
+                            <option value="BTCUSD">BTCUSD - Bitcoin vs US Dollar</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <!-- MT5 Status -->
+                <div class="bg-gray-900 rounded-xl p-6 border border-gray-800">
+                    <div class="flex items-center justify-between mb-6">
+                        <div class="flex items-center">
+                            <i data-lucide="server" class="w-5 h-5 text-blue-400 mr-2"></i>
+                            <h2 class="text-xl font-bold text-white">MT5 Connection</h2>
+                        </div>
+                    </div>
+                    
+                    <div id="mt5-status-content">
+                        <!-- Status content will be populated by JavaScript -->
+                    </div>
+                </div>
+                
+                <!-- Settings Panel -->
+                <div id="settings-panel" class="bg-gray-900 rounded-xl p-6 border border-gray-800 hidden">
+                    <div class="flex items-center mb-6">
+                        <i data-lucide="settings" class="w-5 h-5 text-emerald-400 mr-2"></i>
+                        <h2 class="text-xl font-bold text-white">SuperTrend Parameters</h2>
+                    </div>
+                    
+                    <div class="space-y-6">
+                        <!-- Core Parameters -->
+                        <div class="bg-gray-800 rounded-lg p-4">
+                            <h3 class="text-white font-medium mb-4">Core Settings</h3>
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="block text-sm text-gray-400 mb-2">ATR Period</label>
+                                    <input type="range" id="atr-period" min="5" max="50" value="20" class="w-full">
+                                    <div class="text-white text-sm mt-1">20</div>
+                                </div>
+                                <div>
+                                    <label class="block text-sm text-gray-400 mb-2">Multiplier</label>
+                                    <input type="range" id="multiplier" min="0.5" max="5" step="0.1" value="2.0" class="w-full">
+                                    <div class="text-white text-sm mt-1">2.0</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- RSI Filter -->
+                        <div class="bg-gray-800 rounded-lg p-4">
+                            <div class="flex items-center justify-between mb-4">
+                                <h3 class="text-white font-medium">RSI Filter</h3>
+                                <label class="flex items-center cursor-pointer">
+                                    <input type="checkbox" id="use-rsi-filter" checked class="sr-only">
+                                    <div class="relative w-10 h-6 bg-emerald-500 rounded-full">
+                                        <div class="absolute top-1 left-1 w-4 h-4 bg-white rounded-full transition-transform translate-x-4"></div>
+                                    </div>
+                                </label>
+                            </div>
+                            
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="block text-sm text-gray-400 mb-2">RSI Period</label>
+                                    <input type="range" id="rsi-period" min="5" max="30" value="14" class="w-full">
+                                    <div class="text-white text-sm mt-1">14</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Trading Alerts -->
+                <div class="bg-gray-900 rounded-xl p-6 border border-gray-800">
+                    <div class="flex items-center justify-between mb-6">
+                        <div class="flex items-center">
+                            <i data-lucide="bell" class="w-5 h-5 text-blue-400 mr-2"></i>
+                            <h2 class="text-xl font-bold text-white">Trading Alerts</h2>
+                        </div>
+                    </div>
+                    
+                    <div id="alerts-content" class="text-center text-gray-400 py-8">
+                        <i data-lucide="bell" class="w-8 h-8 mx-auto mb-2 opacity-50"></i>
+                        <p>No signals yet</p>
+                        <p class="text-sm">Signals will appear here when conditions are met</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Status Bar -->
+    <footer class="fixed bottom-0 left-0 right-0 bg-gray-900 border-t border-gray-800 px-4 py-2">
+        <div class="max-w-7xl mx-auto flex items-center justify-between text-sm">
+            <div class="flex items-center space-x-6">
+                <span class="text-gray-400">
+                    Status: <span id="status-indicator" class="text-emerald-400">Live</span>
+                </span>
+                <span class="text-gray-400">
+                    Mode: <span id="mode-indicator" class="text-yellow-400">Demo</span>
+                </span>
+                <span class="text-gray-400">
+                    Pair: <span id="footer-pair" class="text-white font-medium">EURUSD</span>
+                </span>
+                <span class="text-gray-400">
+                    Data Points: <span id="data-points" class="text-white">0</span>
+                </span>
+            </div>
+            
+            <div class="flex items-center space-x-4">
+                <span class="text-gray-400">
+                    Last Update: <span id="last-update" class="text-white">--:--:--</span>
+                </span>
+            </div>
+        </div>
+    </footer>
+
+    <!-- JavaScript -->
+    <script src="/static/js/dashboard.js"></script>
+    <script>
+        // Initialize Lucide icons
+        lucide.createIcons();
+    </script>
+</body>
+</html>

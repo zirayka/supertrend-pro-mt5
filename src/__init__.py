@@ -1,0 +1,1 @@
+"""SuperTrend Pro MT5 - Python Trading Dashboard"""
