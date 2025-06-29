@@ -1,4 +1,4 @@
-"""API routes for the application with direct MT5 integration only - Fixed pairs synchronization"""
+"""API routes for the application with direct MT5 integration only - Fixed dependency injection"""
 
 import logging
 from datetime import datetime
@@ -10,7 +10,6 @@ from src.core.models import (
     SuperTrendConfig, DashboardState, TradingSignal,
     MT5Connection, CurrencyPair, MarketData, MT5Tick
 )
-from src.services.mt5_connection import MT5ConnectionManager
 from src.services.supertrend_calculator import SuperTrendCalculator
 
 logger = logging.getLogger(__name__)
@@ -18,23 +17,37 @@ logger = logging.getLogger(__name__)
 # Create router
 api_router = APIRouter()
 
-# Global instances (in a real app, use dependency injection)
-mt5_manager: Optional[MT5ConnectionManager] = None
-calculator: Optional[SuperTrendCalculator] = None
+# Global instances - will be injected from main.py
+_mt5_manager = None
+_calculator = None
 
-def get_mt5_manager() -> MT5ConnectionManager:
+def set_mt5_manager(manager):
+    """Set the global MT5 manager instance (called from main.py)"""
+    global _mt5_manager
+    _mt5_manager = manager
+    logger.info("✅ MT5 manager instance set in API routes")
+
+def set_calculator(calc):
+    """Set the global calculator instance (called from main.py)"""
+    global _calculator
+    _calculator = calc
+    logger.info("✅ Calculator instance set in API routes")
+
+def get_mt5_manager():
     """Get MT5 connection manager instance"""
-    global mt5_manager
-    if mt5_manager is None:
-        mt5_manager = MT5ConnectionManager()
-    return mt5_manager
+    if _mt5_manager is None:
+        logger.error("❌ MT5 manager not initialized in API routes!")
+        raise HTTPException(status_code=500, detail="MT5 manager not available")
+    return _mt5_manager
 
-def get_calculator() -> SuperTrendCalculator:
+def get_calculator():
     """Get SuperTrend calculator instance"""
-    global calculator
-    if calculator is None:
-        calculator = SuperTrendCalculator(SuperTrendConfig())
-    return calculator
+    if _calculator is None:
+        from src.services.supertrend_calculator import SuperTrendCalculator
+        from src.core.models import SuperTrendConfig
+        _calculator = SuperTrendCalculator(SuperTrendConfig())
+        logger.info("✅ Created new calculator instance")
+    return _calculator
 
 @api_router.get("/status")
 async def get_status():
@@ -44,23 +57,35 @@ async def get_status():
         "timestamp": datetime.now().isoformat(),
         "version": "2.0.0",
         "connection_mode": "MT5 Direct Only",
-        "mt5_package": "MetaTrader5 5.0.45"
+        "mt5_package": "MetaTrader5 5.0.45",
+        "mt5_manager_available": _mt5_manager is not None
     }
 
 @api_router.get("/connection", response_model=MT5Connection)
-async def get_connection_status(mt5: MT5ConnectionManager = Depends(get_mt5_manager)):
+async def get_connection_status():
     """Get MT5 connection status"""
     try:
-        return await mt5.get_connection_status()
+        mt5 = get_mt5_manager()
+        logger.info("📊 API: Getting connection status...")
+        connection = await mt5.get_connection_status()
+        logger.info(f"📊 Connection status: {connection.is_connected} ({connection.connection_type})")
+        return connection
     except Exception as e:
         logger.error(f"Error getting connection status: {e}")
         return MT5Connection(is_connected=False, connection_type="error")
 
 @api_router.get("/pairs", response_model=List[CurrencyPair])
-async def get_currency_pairs(mt5: MT5ConnectionManager = Depends(get_mt5_manager)):
+async def get_currency_pairs():
     """Get available currency pairs from MT5 account with enhanced debugging"""
     try:
         logger.info("📊 API: Getting currency pairs...")
+        
+        # Check if MT5 manager is available
+        if _mt5_manager is None:
+            logger.error("❌ MT5 manager not available in API")
+            return []
+        
+        mt5 = get_mt5_manager()
         logger.info(f"📊 MT5 manager instance: {id(mt5)}")
         
         # Get connection status first
@@ -68,8 +93,16 @@ async def get_currency_pairs(mt5: MT5ConnectionManager = Depends(get_mt5_manager
         logger.info(f"📊 Connection status: {connection.is_connected} ({connection.connection_type})")
         
         if not connection.is_connected:
-            logger.warning("⚠️ MT5 not connected, returning empty pairs list")
-            return []
+            logger.warning("⚠️ MT5 not connected, attempting to reconnect...")
+            
+            # Try to reinitialize the connection
+            await mt5.initialize()
+            
+            # Check connection again
+            connection = await mt5.get_connection_status()
+            if not connection.is_connected:
+                logger.error("❌ Failed to reconnect to MT5")
+                return []
         
         # Get pairs from MT5 manager
         pairs = await mt5.get_available_pairs()
@@ -91,9 +124,17 @@ async def get_currency_pairs(mt5: MT5ConnectionManager = Depends(get_mt5_manager
                     symbols_count = mt5.direct_connection.get_symbols_count()
                     pairs_count = mt5.direct_connection.get_pairs_count()
                     logger.error(f"🔍 Direct connection has {symbols_count} symbols, {pairs_count} pairs")
+                    
+                    # Try to reinitialize the direct connection
+                    logger.info("🔄 Attempting to reinitialize direct connection...")
+                    if await mt5.direct_connection.initialize():
+                        logger.info("✅ Direct connection reinitialized")
+                        pairs = await mt5.get_available_pairs()
+                        logger.info(f"📊 After reinit: {len(pairs)} pairs available")
                 
-                # Return empty list instead of raising exception
-                return []
+                # Return empty list if still no pairs
+                if not pairs:
+                    return []
         
         logger.info(f"✅ API: Returning {len(pairs)} trading pairs")
         
@@ -113,10 +154,26 @@ async def get_currency_pairs(mt5: MT5ConnectionManager = Depends(get_mt5_manager
         return []
 
 @api_router.get("/pairs/reload")
-async def reload_currency_pairs(mt5: MT5ConnectionManager = Depends(get_mt5_manager)):
+async def reload_currency_pairs():
     """Force reload currency pairs from MT5"""
     try:
         logger.info("🔄 API: Force reloading currency pairs...")
+        
+        if _mt5_manager is None:
+            logger.error("❌ MT5 manager not available for reload")
+            return {
+                "status": "error",
+                "message": "MT5 manager not available",
+                "pairs_count": 0,
+                "timestamp": datetime.now().isoformat()
+            }
+        
+        mt5 = get_mt5_manager()
+        
+        # First try to reinitialize the connection
+        await mt5.initialize()
+        
+        # Then force reload pairs
         pairs = await mt5.force_reload_pairs()
         
         return {
@@ -136,10 +193,20 @@ async def reload_currency_pairs(mt5: MT5ConnectionManager = Depends(get_mt5_mana
         }
 
 @api_router.get("/pairs/debug")
-async def debug_currency_pairs(mt5: MT5ConnectionManager = Depends(get_mt5_manager)):
+async def debug_currency_pairs():
     """Debug endpoint to check pairs loading status"""
     try:
         logger.info("🔍 API: Debug currency pairs...")
+        
+        # Check if MT5 manager is available
+        if _mt5_manager is None:
+            return {
+                "error": "MT5 manager not available in API",
+                "mt5_manager_available": False,
+                "timestamp": datetime.now().isoformat()
+            }
+        
+        mt5 = get_mt5_manager()
         
         # Get connection status
         connection = await mt5.get_connection_status()
@@ -161,6 +228,8 @@ async def debug_currency_pairs(mt5: MT5ConnectionManager = Depends(get_mt5_manag
             }
         
         return {
+            "mt5_manager_available": True,
+            "mt5_manager_id": id(mt5),
             "connection": {
                 "is_connected": connection.is_connected,
                 "connection_type": connection.connection_type,
@@ -179,16 +248,15 @@ async def debug_currency_pairs(mt5: MT5ConnectionManager = Depends(get_mt5_manag
         logger.error(f"❌ Error in debug endpoint: {e}")
         return {
             "error": str(e),
+            "mt5_manager_available": _mt5_manager is not None,
             "timestamp": datetime.now().isoformat()
         }
 
 @api_router.get("/tick")
-async def get_current_tick(
-    symbol: str = "EURUSD",
-    mt5: MT5ConnectionManager = Depends(get_mt5_manager)
-):
+async def get_current_tick(symbol: str = "EURUSD"):
     """Get current tick data from MT5"""
     try:
+        mt5 = get_mt5_manager()
         tick = await mt5.get_current_tick(symbol)
         if tick:
             return tick.dict()
@@ -204,11 +272,11 @@ async def get_current_tick(
 async def get_market_data(
     symbol: str = "EURUSD",
     timeframe: str = "M15",
-    count: int = 100,
-    mt5: MT5ConnectionManager = Depends(get_mt5_manager)
+    count: int = 100
 ):
     """Get market data from MT5"""
     try:
+        mt5 = get_mt5_manager()
         data = await mt5.get_market_data(symbol, timeframe, count)
         if not data:
             logger.warning(f"No market data available for {symbol} on {timeframe}")
@@ -219,18 +287,20 @@ async def get_market_data(
         return []
 
 @api_router.get("/positions")
-async def get_positions(mt5: MT5ConnectionManager = Depends(get_mt5_manager)):
+async def get_positions():
     """Get open positions from MT5 account"""
     try:
+        mt5 = get_mt5_manager()
         return await mt5.get_positions()
     except Exception as e:
         logger.error(f"Error getting positions: {e}")
         return []
 
 @api_router.get("/orders")
-async def get_orders(mt5: MT5ConnectionManager = Depends(get_mt5_manager)):
+async def get_orders():
     """Get pending orders from MT5 account"""
     try:
+        mt5 = get_mt5_manager()
         return await mt5.get_orders()
     except Exception as e:
         logger.error(f"Error getting orders: {e}")
@@ -244,11 +314,12 @@ async def place_order(
     price: Optional[float] = None,
     sl: Optional[float] = None,
     tp: Optional[float] = None,
-    comment: str = "",
-    mt5: MT5ConnectionManager = Depends(get_mt5_manager)
+    comment: str = ""
 ):
     """Place a trading order in MT5"""
     try:
+        mt5 = get_mt5_manager()
+        
         # Validate order type
         valid_types = ['BUY', 'SELL', 'BUY_LIMIT', 'SELL_LIMIT', 'BUY_STOP', 'SELL_STOP']
         if order_type.upper() not in valid_types:
@@ -272,12 +343,10 @@ async def place_order(
         raise HTTPException(status_code=500, detail=str(e))
 
 @api_router.post("/config")
-async def update_config(
-    config: SuperTrendConfig,
-    calc: SuperTrendCalculator = Depends(get_calculator)
-):
+async def update_config(config: SuperTrendConfig):
     """Update SuperTrend configuration"""
     try:
+        calc = get_calculator()
         calc.update_config(config)
         return {"status": "success", "message": "Configuration updated"}
     except Exception as e:
@@ -285,19 +354,21 @@ async def update_config(
         raise HTTPException(status_code=400, detail=str(e))
 
 @api_router.get("/config", response_model=SuperTrendConfig)
-async def get_config(calc: SuperTrendCalculator = Depends(get_calculator)):
+async def get_config():
     """Get current SuperTrend configuration"""
+    calc = get_calculator()
     return calc.config
 
 @api_router.post("/calculate")
 async def calculate_supertrend(
     symbol: str,
-    timeframe: str = "M15",
-    calc: SuperTrendCalculator = Depends(get_calculator),
-    mt5: MT5ConnectionManager = Depends(get_mt5_manager)
+    timeframe: str = "M15"
 ):
     """Calculate SuperTrend for given symbol using MT5 data"""
     try:
+        calc = get_calculator()
+        mt5 = get_mt5_manager()
+        
         # Set symbol and add market data
         calc.set_symbol(symbol)
         
@@ -337,9 +408,23 @@ async def calculate_supertrend(
         raise HTTPException(status_code=500, detail=str(e))
 
 @api_router.post("/test-connection")
-async def test_connection(mt5: MT5ConnectionManager = Depends(get_mt5_manager)):
+async def test_connection():
     """Test MT5 direct connection with enhanced pairs testing"""
     try:
+        if _mt5_manager is None:
+            return {
+                "status": "error",
+                "message": "MT5 manager not available",
+                "results": {
+                    "mt5_manager": {
+                        "success": False,
+                        "message": "MT5 manager not initialized"
+                    }
+                },
+                "timestamp": datetime.now().isoformat()
+            }
+        
+        mt5 = get_mt5_manager()
         connection = await mt5.get_connection_status()
         
         test_results = {
@@ -418,12 +503,12 @@ async def test_connection(mt5: MT5ConnectionManager = Depends(get_mt5_manager)):
         raise HTTPException(status_code=500, detail=str(e))
 
 @api_router.get("/dashboard-state", response_model=DashboardState)
-async def get_dashboard_state(
-    mt5: MT5ConnectionManager = Depends(get_mt5_manager),
-    calc: SuperTrendCalculator = Depends(get_calculator)
-):
+async def get_dashboard_state():
     """Get complete dashboard state from MT5"""
     try:
+        mt5 = get_mt5_manager()
+        calc = get_calculator()
+        
         connection = await mt5.get_connection_status()
         pairs = await mt5.get_available_pairs()
         market_data = await mt5.get_market_data("EURUSD", "M15", 100)
@@ -454,9 +539,18 @@ async def get_dashboard_state(
         )
 
 @api_router.post("/reconnect")
-async def reconnect_mt5(mt5: MT5ConnectionManager = Depends(get_mt5_manager)):
+async def reconnect_mt5():
     """Reconnect to MT5 Terminal"""
     try:
+        if _mt5_manager is None:
+            return {
+                "status": "error",
+                "message": "MT5 manager not available",
+                "connected": False,
+                "timestamp": datetime.now().isoformat()
+            }
+        
+        mt5 = get_mt5_manager()
         await mt5.initialize()
         connection = await mt5.get_connection_status()
         
@@ -475,9 +569,10 @@ async def reconnect_mt5(mt5: MT5ConnectionManager = Depends(get_mt5_manager)):
         raise HTTPException(status_code=500, detail=str(e))
 
 @api_router.get("/account-summary")
-async def get_account_summary(mt5: MT5ConnectionManager = Depends(get_mt5_manager)):
+async def get_account_summary():
     """Get comprehensive MT5 account summary"""
     try:
+        mt5 = get_mt5_manager()
         connection = await mt5.get_connection_status()
         
         if not connection.is_connected:
