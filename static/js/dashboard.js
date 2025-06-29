@@ -17,6 +17,12 @@ class SuperTrendDashboard {
             use_rsi_filter: true
         };
         
+        // Data storage
+        this.availablePairs = [];
+        this.filteredPairs = [];
+        this.accountInfo = {};
+        this.connectionInfo = {};
+        
         this.init();
     }
     
@@ -48,7 +54,7 @@ class SuperTrendDashboard {
             // Subscribe to events
             this.ws.send(JSON.stringify({
                 type: 'subscribe',
-                events: ['tick', 'market_data', 'connection_status', 'signal']
+                events: ['tick', 'market_data', 'connection_status', 'signal', 'account_info', 'symbols']
             }));
         };
         
@@ -86,6 +92,12 @@ class SuperTrendDashboard {
             case 'connection_status':
                 this.updateMT5Status(data.data);
                 break;
+            case 'account_info':
+                this.updateAccountInfo(data.data);
+                break;
+            case 'symbols':
+                this.updateAvailablePairs(data.data);
+                break;
             case 'signal':
                 this.addTradingSignal(data.data);
                 break;
@@ -113,9 +125,34 @@ class SuperTrendDashboard {
             this.toggleSettings();
         });
         
+        // Refresh connection button
+        document.getElementById('refresh-connection').addEventListener('click', () => {
+            this.refreshConnection();
+        });
+        
         // Pair selector
         document.getElementById('pair-selector').addEventListener('change', (e) => {
             this.changeSymbol(e.target.value);
+        });
+        
+        // Pair search
+        document.getElementById('pair-search').addEventListener('input', (e) => {
+            this.filterPairs(e.target.value);
+        });
+        
+        // Category filters
+        document.querySelectorAll('.category-filter').forEach(button => {
+            button.addEventListener('click', (e) => {
+                this.filterByCategory(e.target.dataset.category);
+                
+                // Update active state
+                document.querySelectorAll('.category-filter').forEach(btn => {
+                    btn.classList.remove('active', 'bg-blue-500', 'text-white');
+                    btn.classList.add('bg-gray-700', 'text-gray-300');
+                });
+                e.target.classList.add('active', 'bg-blue-500', 'text-white');
+                e.target.classList.remove('bg-gray-700', 'text-gray-300');
+            });
         });
         
         // Parameter controls
@@ -240,6 +277,8 @@ class SuperTrendDashboard {
             
         } catch (error) {
             console.error('Error loading initial data:', error);
+            // Initialize with demo data if API fails
+            this.initializeDemoData();
         }
     }
     
@@ -248,18 +287,214 @@ class SuperTrendDashboard {
             const response = await fetch('/api/pairs');
             const pairs = await response.json();
             
-            const selector = document.getElementById('pair-selector');
-            if (selector && pairs.length > 0) {
-                selector.innerHTML = '';
-                pairs.forEach(pair => {
-                    const option = document.createElement('option');
-                    option.value = pair.symbol;
-                    option.textContent = `${pair.symbol} - ${pair.name}`;
-                    selector.appendChild(option);
-                });
-            }
+            this.updateAvailablePairs(pairs);
+            
         } catch (error) {
             console.error('Error loading pairs:', error);
+            // Initialize with demo pairs
+            this.initializeDemoPairs();
+        }
+    }
+    
+    initializeDemoData() {
+        // Demo account info
+        this.accountInfo = {
+            balance: 10000.00,
+            equity: 10000.00,
+            margin: 0.00,
+            free_margin: 10000.00,
+            margin_level: 0.00
+        };
+        
+        this.connectionInfo = {
+            is_connected: true,
+            connection_type: 'demo',
+            server: 'Demo Server',
+            account: 12345678
+        };
+        
+        this.updateAccountInfo(this.accountInfo);
+        this.updateMT5Status(this.connectionInfo);
+    }
+    
+    initializeDemoPairs() {
+        const demoPairs = [
+            { symbol: 'EURUSD', name: 'Euro vs US Dollar', category: 'major', digits: 5, min_lot: 0.01, spread: 1.5 },
+            { symbol: 'GBPUSD', name: 'British Pound vs US Dollar', category: 'major', digits: 5, min_lot: 0.01, spread: 2.0 },
+            { symbol: 'USDJPY', name: 'US Dollar vs Japanese Yen', category: 'major', digits: 3, min_lot: 0.01, spread: 1.8 },
+            { symbol: 'USDCHF', name: 'US Dollar vs Swiss Franc', category: 'major', digits: 5, min_lot: 0.01, spread: 2.2 },
+            { symbol: 'AUDUSD', name: 'Australian Dollar vs US Dollar', category: 'major', digits: 5, min_lot: 0.01, spread: 2.5 },
+            { symbol: 'USDCAD', name: 'US Dollar vs Canadian Dollar', category: 'major', digits: 5, min_lot: 0.01, spread: 2.8 },
+            { symbol: 'NZDUSD', name: 'New Zealand Dollar vs US Dollar', category: 'major', digits: 5, min_lot: 0.01, spread: 3.0 },
+            { symbol: 'EURGBP', name: 'Euro vs British Pound', category: 'minor', digits: 5, min_lot: 0.01, spread: 2.5 },
+            { symbol: 'EURJPY', name: 'Euro vs Japanese Yen', category: 'minor', digits: 3, min_lot: 0.01, spread: 2.8 },
+            { symbol: 'GBPJPY', name: 'British Pound vs Japanese Yen', category: 'minor', digits: 3, min_lot: 0.01, spread: 3.5 },
+            { symbol: 'XAUUSD', name: 'Gold vs US Dollar', category: 'commodities', digits: 2, min_lot: 0.01, spread: 3.0 },
+            { symbol: 'XAGUSD', name: 'Silver vs US Dollar', category: 'commodities', digits: 3, min_lot: 0.01, spread: 5.0 },
+            { symbol: 'BTCUSD', name: 'Bitcoin vs US Dollar', category: 'crypto', digits: 2, min_lot: 0.01, spread: 50.0 },
+            { symbol: 'ETHUSD', name: 'Ethereum vs US Dollar', category: 'crypto', digits: 2, min_lot: 0.01, spread: 5.0 }
+        ];
+        
+        this.updateAvailablePairs(demoPairs);
+    }
+    
+    updateAvailablePairs(pairs) {
+        this.availablePairs = pairs;
+        this.filteredPairs = [...pairs];
+        
+        // Update pairs count
+        document.getElementById('pairs-count').textContent = `${pairs.length} pairs`;
+        
+        // Populate selector
+        this.populatePairSelector();
+    }
+    
+    populatePairSelector() {
+        const selector = document.getElementById('pair-selector');
+        if (!selector) return;
+        
+        selector.innerHTML = '';
+        
+        this.filteredPairs.forEach(pair => {
+            const option = document.createElement('option');
+            option.value = pair.symbol;
+            option.textContent = `${pair.symbol} - ${pair.name}`;
+            option.dataset.category = pair.category;
+            option.dataset.digits = pair.digits;
+            option.dataset.minLot = pair.min_lot;
+            option.dataset.spread = pair.spread || 0;
+            
+            if (pair.symbol === this.currentSymbol) {
+                option.selected = true;
+                this.updateSelectedPairInfo(pair);
+            }
+            
+            selector.appendChild(option);
+        });
+        
+        // Add change listener for pair info
+        selector.addEventListener('change', (e) => {
+            const selectedOption = e.target.selectedOptions[0];
+            if (selectedOption) {
+                const pairInfo = {
+                    symbol: selectedOption.value,
+                    digits: parseInt(selectedOption.dataset.digits),
+                    min_lot: parseFloat(selectedOption.dataset.minLot),
+                    spread: parseFloat(selectedOption.dataset.spread)
+                };
+                this.updateSelectedPairInfo(pairInfo);
+            }
+        });
+    }
+    
+    updateSelectedPairInfo(pair) {
+        const infoPanel = document.getElementById('selected-pair-info');
+        if (!infoPanel) return;
+        
+        document.getElementById('pair-digits').textContent = pair.digits;
+        document.getElementById('pair-min-lot').textContent = pair.min_lot;
+        document.getElementById('pair-spread').textContent = `${pair.spread} pips`;
+        
+        infoPanel.classList.remove('hidden');
+    }
+    
+    filterPairs(searchTerm) {
+        const term = searchTerm.toLowerCase();
+        this.filteredPairs = this.availablePairs.filter(pair => 
+            pair.symbol.toLowerCase().includes(term) || 
+            pair.name.toLowerCase().includes(term)
+        );
+        this.populatePairSelector();
+    }
+    
+    filterByCategory(category) {
+        if (category === 'all') {
+            this.filteredPairs = [...this.availablePairs];
+        } else {
+            this.filteredPairs = this.availablePairs.filter(pair => pair.category === category);
+        }
+        this.populatePairSelector();
+    }
+    
+    updateAccountInfo(accountData) {
+        this.accountInfo = { ...this.accountInfo, ...accountData };
+        
+        // Update balance display
+        const balance = this.accountInfo.balance || 0;
+        const equity = this.accountInfo.equity || 0;
+        const freeMargin = this.accountInfo.free_margin || 0;
+        const marginLevel = this.accountInfo.margin_level || 0;
+        
+        document.getElementById('account-balance').textContent = `$${balance.toFixed(2)}`;
+        document.getElementById('account-equity').textContent = `$${equity.toFixed(2)}`;
+        document.getElementById('account-free-margin').textContent = `$${freeMargin.toFixed(2)}`;
+        document.getElementById('account-margin-level').textContent = `${marginLevel.toFixed(2)}%`;
+        
+        // Update balance color based on equity vs balance
+        const balanceElement = document.getElementById('account-balance');
+        if (equity > balance) {
+            balanceElement.className = 'text-lg font-bold balance-positive';
+        } else if (equity < balance) {
+            balanceElement.className = 'text-lg font-bold balance-negative';
+        } else {
+            balanceElement.className = 'text-lg font-bold balance-neutral';
+        }
+        
+        // Update margin level bar
+        const marginBar = document.getElementById('margin-level-bar');
+        const marginPercent = document.getElementById('margin-level-percent');
+        if (marginBar && marginPercent) {
+            const safeLevel = Math.min(marginLevel / 100 * 100, 100);
+            marginBar.style.width = `${safeLevel}%`;
+            marginPercent.textContent = `${marginLevel.toFixed(1)}%`;
+            
+            // Color based on margin level
+            if (marginLevel > 100) {
+                marginBar.className = 'h-2 rounded-full bg-emerald-400 transition-all duration-500';
+            } else if (marginLevel > 50) {
+                marginBar.className = 'h-2 rounded-full bg-yellow-400 transition-all duration-500';
+            } else {
+                marginBar.className = 'h-2 rounded-full bg-red-400 transition-all duration-500';
+            }
+        }
+        
+        // Calculate balance change percentage (mock for demo)
+        const balanceChange = ((equity - balance) / balance * 100);
+        const changeElement = document.getElementById('balance-change');
+        if (changeElement) {
+            const sign = balanceChange >= 0 ? '+' : '';
+            changeElement.textContent = `${sign}${balanceChange.toFixed(2)}%`;
+            changeElement.className = balanceChange >= 0 ? 'text-xs text-emerald-400' : 'text-xs text-red-400';
+        }
+    }
+    
+    updateMT5Status(connection) {
+        this.connectionInfo = { ...this.connectionInfo, ...connection };
+        
+        const isConnected = connection.is_connected;
+        const connectionType = connection.connection_type || 'demo';
+        
+        // Update connection indicator
+        this.updateConnectionStatus(isConnected, connectionType);
+        
+        // Update connection details
+        document.getElementById('mt5-server').textContent = connection.server || 'Demo Server';
+        document.getElementById('mt5-account').textContent = connection.account || '12345678';
+        document.getElementById('mt5-connection-status').textContent = 
+            isConnected ? (connectionType === 'demo' ? 'Demo Mode' : 'Connected') : 'Disconnected';
+        
+        // Update connection type badge
+        const badge = document.getElementById('connection-type-badge');
+        if (badge) {
+            badge.className = `px-2 py-1 rounded-full text-xs font-medium connection-${connectionType}`;
+            badge.textContent = connectionType === 'websocket' ? 'WebSocket Live' :
+                              connectionType === 'file' ? 'File-based Live' : 'Demo Mode';
+        }
+        
+        // Update last update time
+        if (connection.last_update) {
+            const updateTime = new Date(connection.last_update).toLocaleTimeString();
+            document.getElementById('mt5-last-update').textContent = updateTime;
         }
     }
     
@@ -333,71 +568,6 @@ class SuperTrendDashboard {
     updateMarketData(data) {
         // Update data points counter
         document.getElementById('data-points').textContent = data.length || 0;
-    }
-    
-    updateMT5Status(connection) {
-        const statusContent = document.getElementById('mt5-status-content');
-        if (!statusContent) return;
-        
-        const isConnected = connection.is_connected;
-        const connectionType = connection.connection_type || 'demo';
-        
-        // Update connection indicator
-        this.updateConnectionStatus(isConnected, connectionType);
-        
-        if (isConnected) {
-            statusContent.innerHTML = `
-                <div class="space-y-4">
-                    <div class="bg-gray-800 rounded-lg p-4">
-                        <h3 class="text-white font-medium mb-3">Connection Info</h3>
-                        <div class="space-y-2 text-sm">
-                            <div class="flex justify-between">
-                                <span class="text-gray-400">Type</span>
-                                <span class="text-white">${connectionType.charAt(0).toUpperCase() + connectionType.slice(1)}</span>
-                            </div>
-                            <div class="flex justify-between">
-                                <span class="text-gray-400">Server</span>
-                                <span class="text-white">${connection.server || 'N/A'}</span>
-                            </div>
-                            <div class="flex justify-between">
-                                <span class="text-gray-400">Account</span>
-                                <span class="text-white">${connection.account || 'N/A'}</span>
-                            </div>
-                        </div>
-                    </div>
-                    
-                    ${connection.balance !== undefined ? `
-                    <div class="bg-gray-800 rounded-lg p-4">
-                        <h3 class="text-white font-medium mb-3">Account Balance</h3>
-                        <div class="space-y-2 text-sm">
-                            <div class="flex justify-between">
-                                <span class="text-gray-400">Balance</span>
-                                <span class="text-emerald-400 font-bold">$${connection.balance.toFixed(2)}</span>
-                            </div>
-                            <div class="flex justify-between">
-                                <span class="text-gray-400">Equity</span>
-                                <span class="text-white">$${connection.equity.toFixed(2)}</span>
-                            </div>
-                        </div>
-                    </div>
-                    ` : ''}
-                </div>
-            `;
-        } else {
-            statusContent.innerHTML = `
-                <div class="text-center py-8">
-                    <i data-lucide="wifi-off" class="w-16 h-16 text-gray-600 mx-auto mb-4"></i>
-                    <h3 class="text-white font-medium mb-2">Not Connected to MT5</h3>
-                    <p class="text-gray-400 mb-4">Running in demo mode</p>
-                    <button onclick="dashboard.reconnectMT5()" class="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors">
-                        Try Reconnect
-                    </button>
-                </div>
-            `;
-        }
-        
-        // Re-initialize Lucide icons
-        lucide.createIcons();
     }
     
     updateConnectionStatus(isConnected, type = 'demo') {
@@ -557,6 +727,33 @@ class SuperTrendDashboard {
         this.resetData();
         
         // TODO: Send symbol change to backend
+    }
+    
+    async refreshConnection() {
+        try {
+            const button = document.getElementById('refresh-connection');
+            const icon = button.querySelector('i');
+            
+            // Add spinning animation
+            icon.classList.add('animate-spin');
+            
+            const response = await fetch('/api/reconnect', { method: 'POST' });
+            const result = await response.json();
+            
+            if (result.status === 'success') {
+                console.log('✅ Connection refreshed');
+                // Reload data
+                await this.loadInitialData();
+            }
+            
+            // Remove spinning animation
+            setTimeout(() => {
+                icon.classList.remove('animate-spin');
+            }, 1000);
+            
+        } catch (error) {
+            console.error('Error refreshing connection:', error);
+        }
     }
     
     async updateConfig() {

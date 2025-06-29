@@ -29,6 +29,51 @@
         .gradient-bg {
             background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
         }
+
+        /* Custom scrollbar for dropdowns */
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: #374151;
+            border-radius: 3px;
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #6b7280;
+            border-radius: 3px;
+        }
+        
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+            background: #9ca3af;
+        }
+
+        /* Account balance styling */
+        .balance-positive {
+            color: #10b981;
+        }
+        
+        .balance-negative {
+            color: #ef4444;
+        }
+        
+        .balance-neutral {
+            color: #f59e0b;
+        }
+
+        /* Connection type badges */
+        .connection-websocket {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        }
+        
+        .connection-file {
+            background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+        }
+        
+        .connection-demo {
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+        }
     </style>
 </head>
 <body class="bg-gray-950 text-white min-h-screen gradient-bg">
@@ -213,30 +258,163 @@
                             <i data-lucide="bar-chart-3" class="w-5 h-5 text-blue-400 mr-2"></i>
                             <h2 class="text-xl font-bold text-white">Trading Pairs</h2>
                         </div>
+                        <div id="pairs-count" class="text-sm text-gray-400">0 pairs</div>
                     </div>
                     
                     <div class="space-y-4">
-                        <select id="pair-selector" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-blue-500">
-                            <option value="EURUSD">EURUSD - Euro vs US Dollar</option>
-                            <option value="GBPUSD">GBPUSD - British Pound vs US Dollar</option>
-                            <option value="USDJPY">USDJPY - US Dollar vs Japanese Yen</option>
-                            <option value="XAUUSD">XAUUSD - Gold vs US Dollar</option>
-                            <option value="BTCUSD">BTCUSD - Bitcoin vs US Dollar</option>
+                        <!-- Search/Filter -->
+                        <div class="relative">
+                            <input 
+                                type="text" 
+                                id="pair-search" 
+                                placeholder="Search pairs..." 
+                                class="w-full px-3 py-2 pl-10 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-400 focus:outline-none focus:border-blue-500"
+                            >
+                            <i data-lucide="search" class="absolute left-3 top-2.5 w-4 h-4 text-gray-400"></i>
+                        </div>
+                        
+                        <!-- Category Filter -->
+                        <div class="flex flex-wrap gap-2">
+                            <button class="category-filter active px-3 py-1 text-xs rounded-full bg-blue-500 text-white" data-category="all">All</button>
+                            <button class="category-filter px-3 py-1 text-xs rounded-full bg-gray-700 text-gray-300 hover:bg-gray-600" data-category="major">Major</button>
+                            <button class="category-filter px-3 py-1 text-xs rounded-full bg-gray-700 text-gray-300 hover:bg-gray-600" data-category="minor">Minor</button>
+                            <button class="category-filter px-3 py-1 text-xs rounded-full bg-gray-700 text-gray-300 hover:bg-gray-600" data-category="crypto">Crypto</button>
+                            <button class="category-filter px-3 py-1 text-xs rounded-full bg-gray-700 text-gray-300 hover:bg-gray-600" data-category="commodities">Gold/Oil</button>
+                        </div>
+                        
+                        <!-- Pair Selector -->
+                        <select id="pair-selector" class="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-white focus:outline-none focus:border-blue-500 custom-scrollbar" size="8">
+                            <option value="" disabled>Loading pairs...</option>
                         </select>
+                        
+                        <!-- Selected Pair Info -->
+                        <div id="selected-pair-info" class="bg-gray-800 rounded-lg p-3 hidden">
+                            <div class="text-sm space-y-2">
+                                <div class="flex justify-between">
+                                    <span class="text-gray-400">Digits:</span>
+                                    <span id="pair-digits" class="text-white">5</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-gray-400">Min Lot:</span>
+                                    <span id="pair-min-lot" class="text-white">0.01</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-gray-400">Spread:</span>
+                                    <span id="pair-spread" class="text-yellow-400">1.5 pips</span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 
-                <!-- MT5 Status -->
+                <!-- MT5 Connection & Account Details -->
                 <div class="bg-gray-900 rounded-xl p-6 border border-gray-800">
                     <div class="flex items-center justify-between mb-6">
                         <div class="flex items-center">
                             <i data-lucide="server" class="w-5 h-5 text-blue-400 mr-2"></i>
-                            <h2 class="text-xl font-bold text-white">MT5 Connection</h2>
+                            <h2 class="text-xl font-bold text-white">MT5 Account</h2>
                         </div>
+                        <button id="refresh-connection" class="p-2 rounded-lg bg-gray-700 hover:bg-gray-600 text-gray-300 transition-colors">
+                            <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+                        </button>
                     </div>
                     
                     <div id="mt5-status-content">
-                        <!-- Status content will be populated by JavaScript -->
+                        <!-- Connection Status -->
+                        <div class="bg-gray-800 rounded-lg p-4 mb-4">
+                            <div class="flex items-center justify-between mb-3">
+                                <h3 class="text-white font-medium">Connection Status</h3>
+                                <div id="connection-type-badge" class="px-2 py-1 rounded-full text-xs font-medium connection-demo">
+                                    Demo Mode
+                                </div>
+                            </div>
+                            
+                            <div class="space-y-2 text-sm">
+                                <div class="flex justify-between">
+                                    <span class="text-gray-400">Server:</span>
+                                    <span id="mt5-server" class="text-white">Demo Server</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-gray-400">Account:</span>
+                                    <span id="mt5-account" class="text-white">12345678</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-gray-400">Status:</span>
+                                    <span id="mt5-connection-status" class="text-yellow-400">Demo Mode</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-gray-400">Last Update:</span>
+                                    <span id="mt5-last-update" class="text-gray-300">--:--:--</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Account Balance -->
+                        <div class="bg-gray-800 rounded-lg p-4 mb-4">
+                            <h3 class="text-white font-medium mb-3">Account Balance</h3>
+                            <div class="space-y-3">
+                                <div class="flex justify-between items-center">
+                                    <span class="text-gray-400">Balance:</span>
+                                    <div class="text-right">
+                                        <div id="account-balance" class="text-lg font-bold balance-neutral">$10,000.00</div>
+                                        <div id="balance-change" class="text-xs text-gray-400">+0.00%</div>
+                                    </div>
+                                </div>
+                                
+                                <div class="flex justify-between">
+                                    <span class="text-gray-400">Equity:</span>
+                                    <span id="account-equity" class="text-white font-medium">$10,000.00</span>
+                                </div>
+                                
+                                <div class="flex justify-between">
+                                    <span class="text-gray-400">Free Margin:</span>
+                                    <span id="account-free-margin" class="text-emerald-400 font-medium">$10,000.00</span>
+                                </div>
+                                
+                                <div class="flex justify-between">
+                                    <span class="text-gray-400">Margin Level:</span>
+                                    <span id="account-margin-level" class="text-white">0.00%</span>
+                                </div>
+                                
+                                <!-- Margin Level Bar -->
+                                <div class="mt-3">
+                                    <div class="flex justify-between text-xs text-gray-400 mb-1">
+                                        <span>Margin Level</span>
+                                        <span id="margin-level-percent">0%</span>
+                                    </div>
+                                    <div class="bg-gray-700 rounded-full h-2">
+                                        <div id="margin-level-bar" class="h-2 rounded-full bg-emerald-400 transition-all duration-500" style="width: 0%"></div>
+                                    </div>
+                                    <div class="flex justify-between text-xs text-gray-500 mt-1">
+                                        <span>Safe (>100%)</span>
+                                        <span>Danger (<50%)</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Trading Statistics -->
+                        <div class="bg-gray-800 rounded-lg p-4">
+                            <h3 class="text-white font-medium mb-3">Trading Stats</h3>
+                            <div class="grid grid-cols-2 gap-3 text-sm">
+                                <div class="text-center">
+                                    <div id="open-positions" class="text-lg font-bold text-blue-400">0</div>
+                                    <div class="text-gray-400">Open Positions</div>
+                                </div>
+                                <div class="text-center">
+                                    <div id="pending-orders" class="text-lg font-bold text-yellow-400">0</div>
+                                    <div class="text-gray-400">Pending Orders</div>
+                                </div>
+                                <div class="text-center">
+                                    <div id="daily-pnl" class="text-lg font-bold text-emerald-400">+$0.00</div>
+                                    <div class="text-gray-400">Daily P&L</div>
+                                </div>
+                                <div class="text-center">
+                                    <div id="total-trades" class="text-lg font-bold text-white">0</div>
+                                    <div class="text-gray-400">Total Trades</div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 
