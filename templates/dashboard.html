@@ -396,112 +396,7 @@
                 </div>
             </div>
             
-            <!-- Middle Column - MT5 Account -->
-            <div class="space-y-8">
-                <!-- Enhanced MT5 Connection & Account -->
-                <div class="trading-card glass-dark rounded-2xl p-6 border border-white/10">
-                    <div class="flex items-center justify-between mb-6">
-                        <div class="flex items-center space-x-3">
-                            <div class="p-2 bg-green-500/20 rounded-lg">
-                                <i data-lucide="server" class="w-5 h-5 text-green-400"></i>
-                            </div>
-                            <h2 class="text-xl font-bold text-white">MT5 Account</h2>
-                        </div>
-                        <button id="refresh-connection" class="p-2 rounded-lg glass hover:bg-white/10 text-gray-300 hover:text-white transition-all group">
-                            <i data-lucide="refresh-cw" class="w-5 h-5 group-hover:rotate-180 transition-transform duration-500"></i>
-                        </button>
-                    </div>
-                    
-                    <div id="mt5-status-content">
-                        <!-- Connection Status -->
-                        <div class="glass rounded-xl p-4 mb-4">
-                            <div class="flex items-center justify-between mb-4">
-                                <h3 class="text-white font-semibold">Connection Status</h3>
-                                <div id="connection-type-badge" class="px-3 py-1 rounded-full text-xs font-medium bg-yellow-500/20 text-yellow-400">
-                                    Connecting...
-                                </div>
-                            </div>
-                            
-                            <div class="space-y-3 text-sm">
-                                <div class="flex justify-between items-center">
-                                    <span class="text-gray-400">Server:</span>
-                                    <span id="mt5-server" class="text-white font-medium">Connecting...</span>
-                                </div>
-                                <div class="flex justify-between items-center">
-                                    <span class="text-gray-400">Account:</span>
-                                    <span id="mt5-account" class="text-white font-medium">--</span>
-                                </div>
-                                <div class="flex justify-between items-center">
-                                    <span class="text-gray-400">Status:</span>
-                                    <span id="mt5-connection-status" class="text-yellow-400 font-medium">Initializing</span>
-                                </div>
-                                <div class="flex justify-between items-center">
-                                    <span class="text-gray-400">Last Update:</span>
-                                    <span id="mt5-last-update" class="text-gray-300">--:--:--</span>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <!-- Enhanced Account Balance -->
-                        <div class="glass rounded-xl p-4 mb-4">
-                            <h3 class="text-white font-semibold mb-4">Account Balance</h3>
-                            <div class="space-y-4">
-                                <div class="text-center">
-                                    <div id="account-balance" class="text-3xl font-bold text-white mb-1">$0.00</div>
-                                    <div id="balance-change" class="text-sm text-gray-400">+0.00%</div>
-                                </div>
-                                
-                                <div class="grid grid-cols-2 gap-4 text-sm">
-                                    <div>
-                                        <span class="text-gray-400 block">Equity</span>
-                                        <span id="account-equity" class="text-white font-semibold">$0.00</span>
-                                    </div>
-                                    <div>
-                                        <span class="text-gray-400 block">Free Margin</span>
-                                        <span id="account-free-margin" class="text-primary-500 font-semibold">$0.00</span>
-                                    </div>
-                                </div>
-                                
-                                <!-- Enhanced Margin Level -->
-                                <div>
-                                    <div class="flex justify-between text-sm mb-2">
-                                        <span class="text-gray-400">Margin Level</span>
-                                        <span id="margin-level-percent" class="text-white font-medium">0%</span>
-                                    </div>
-                                    <div class="bg-gray-700 rounded-full h-3 overflow-hidden">
-                                        <div id="margin-level-bar" class="h-full gradient-primary transition-all duration-1000" style="width: 0%"></div>
-                                    </div>
-                                    <div class="flex justify-between text-xs text-gray-500 mt-1">
-                                        <span>Danger</span>
-                                        <span>Safe</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <!-- Enhanced Trading Statistics -->
-                        <div class="glass rounded-xl p-4">
-                            <h3 class="text-white font-semibold mb-4">Trading Statistics</h3>
-                            <div class="grid grid-cols-2 gap-4">
-                                <div class="text-center p-3 bg-gray-800/50 rounded-lg">
-                                    <div id="open-positions" class="text-2xl font-bold text-blue-400">0</div>
-                                    <div class="text-gray-400 text-sm">Open Positions</div>
-                                </div>
-                                <div class="text-center p-3 bg-gray-800/50 rounded-lg">
-                                    <div id="pending-orders" class="text-2xl font-bold text-yellow-400">0</div>
-                                    <div class="text-gray-400 text-sm">Pending Orders</div>
-                                </div>
-                                <div class="text-center p-3 bg-gray-800/50 rounded-lg col-span-2">
-                                    <div id="daily-pnl" class="text-2xl font-bold text-primary-500">+$0.00</div>
-                                    <div class="text-gray-400 text-sm">Daily P&L</div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Right Column - Trading Chart and Analysis -->
+            <!-- Middle Column - Trading Chart and Analysis -->
             <div class="xl:col-span-2 space-y-8">
                 <!-- Enhanced Price Chart Section -->
                 <div class="trading-card glass-dark rounded-2xl p-8 border border-white/10">
@@ -730,6 +625,111 @@
                             <i data-lucide="check" class="w-5 h-5 mr-2 inline"></i>
                             Apply Settings
                         </button>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Right Column - MT5 Account -->
+            <div class="space-y-6">
+                <!-- Enhanced MT5 Connection & Account -->
+                <div class="trading-card glass-dark rounded-2xl p-6 border border-white/10">
+                    <div class="flex items-center justify-between mb-6">
+                        <div class="flex items-center space-x-3">
+                            <div class="p-2 bg-green-500/20 rounded-lg">
+                                <i data-lucide="server" class="w-5 h-5 text-green-400"></i>
+                            </div>
+                            <h2 class="text-xl font-bold text-white">MT5 Account</h2>
+                        </div>
+                        <button id="refresh-connection" class="p-2 rounded-lg glass hover:bg-white/10 text-gray-300 hover:text-white transition-all group">
+                            <i data-lucide="refresh-cw" class="w-5 h-5 group-hover:rotate-180 transition-transform duration-500"></i>
+                        </button>
+                    </div>
+                    
+                    <div id="mt5-status-content">
+                        <!-- Connection Status -->
+                        <div class="glass rounded-xl p-4 mb-4">
+                            <div class="flex items-center justify-between mb-4">
+                                <h3 class="text-white font-semibold">Connection Status</h3>
+                                <div id="connection-type-badge" class="px-3 py-1 rounded-full text-xs font-medium bg-yellow-500/20 text-yellow-400">
+                                    Connecting...
+                                </div>
+                            </div>
+                            
+                            <div class="space-y-3 text-sm">
+                                <div class="flex justify-between items-center">
+                                    <span class="text-gray-400">Server:</span>
+                                    <span id="mt5-server" class="text-white font-medium">Connecting...</span>
+                                </div>
+                                <div class="flex justify-between items-center">
+                                    <span class="text-gray-400">Account:</span>
+                                    <span id="mt5-account" class="text-white font-medium">--</span>
+                                </div>
+                                <div class="flex justify-between items-center">
+                                    <span class="text-gray-400">Status:</span>
+                                    <span id="mt5-connection-status" class="text-yellow-400 font-medium">Initializing</span>
+                                </div>
+                                <div class="flex justify-between items-center">
+                                    <span class="text-gray-400">Last Update:</span>
+                                    <span id="mt5-last-update" class="text-gray-300">--:--:--</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Enhanced Account Balance -->
+                        <div class="glass rounded-xl p-4 mb-4">
+                            <h3 class="text-white font-semibold mb-4">Account Balance</h3>
+                            <div class="space-y-4">
+                                <div class="text-center">
+                                    <div id="account-balance" class="text-3xl font-bold text-white mb-1">$0.00</div>
+                                    <div id="balance-change" class="text-sm text-gray-400">+0.00%</div>
+                                </div>
+                                
+                                <div class="grid grid-cols-2 gap-4 text-sm">
+                                    <div>
+                                        <span class="text-gray-400 block">Equity</span>
+                                        <span id="account-equity" class="text-white font-semibold">$0.00</span>
+                                    </div>
+                                    <div>
+                                        <span class="text-gray-400 block">Free Margin</span>
+                                        <span id="account-free-margin" class="text-primary-500 font-semibold">$0.00</span>
+                                    </div>
+                                </div>
+                                
+                                <!-- Enhanced Margin Level -->
+                                <div>
+                                    <div class="flex justify-between text-sm mb-2">
+                                        <span class="text-gray-400">Margin Level</span>
+                                        <span id="margin-level-percent" class="text-white font-medium">0%</span>
+                                    </div>
+                                    <div class="bg-gray-700 rounded-full h-3 overflow-hidden">
+                                        <div id="margin-level-bar" class="h-full gradient-primary transition-all duration-1000" style="width: 0%"></div>
+                                    </div>
+                                    <div class="flex justify-between text-xs text-gray-500 mt-1">
+                                        <span>Danger</span>
+                                        <span>Safe</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Enhanced Trading Statistics -->
+                        <div class="glass rounded-xl p-4">
+                            <h3 class="text-white font-semibold mb-4">Trading Statistics</h3>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div class="text-center p-3 bg-gray-800/50 rounded-lg">
+                                    <div id="open-positions" class="text-2xl font-bold text-blue-400">0</div>
+                                    <div class="text-gray-400 text-sm">Open Positions</div>
+                                </div>
+                                <div class="text-center p-3 bg-gray-800/50 rounded-lg">
+                                    <div id="pending-orders" class="text-2xl font-bold text-yellow-400">0</div>
+                                    <div class="text-gray-400 text-sm">Pending Orders</div>
+                                </div>
+                                <div class="text-center p-3 bg-gray-800/50 rounded-lg col-span-2">
+                                    <div id="daily-pnl" class="text-2xl font-bold text-primary-500">+$0.00</div>
+                                    <div class="text-gray-400 text-sm">Daily P&L</div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
