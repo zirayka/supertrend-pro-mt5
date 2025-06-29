@@ -91,17 +91,17 @@
         
         /* Custom scrollbars */
         .custom-scrollbar::-webkit-scrollbar {
-            width: 6px;
+            width: 4px;
         }
         
         .custom-scrollbar::-webkit-scrollbar-track {
             background: rgba(55, 65, 81, 0.3);
-            border-radius: 3px;
+            border-radius: 2px;
         }
         
         .custom-scrollbar::-webkit-scrollbar-thumb {
             background: linear-gradient(135deg, #10b981, #059669);
-            border-radius: 3px;
+            border-radius: 2px;
         }
         
         .custom-scrollbar::-webkit-scrollbar-thumb:hover {
@@ -114,8 +114,8 @@
             appearance: none;
             background: transparent;
             cursor: pointer;
-            height: 8px;
-            border-radius: 4px;
+            height: 6px;
+            border-radius: 3px;
             background: linear-gradient(90deg, #374151 0%, #10b981 var(--value, 50%), #374151 var(--value, 50%));
         }
         
@@ -123,22 +123,22 @@
             -webkit-appearance: none;
             appearance: none;
             background: linear-gradient(135deg, #10b981, #059669);
-            height: 24px;
-            width: 24px;
+            height: 18px;
+            width: 18px;
             border-radius: 50%;
             cursor: pointer;
-            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+            box-shadow: 0 2px 8px rgba(16, 185, 129, 0.4);
             transition: all 0.2s ease-in-out;
         }
         
         input[type="range"]::-webkit-slider-thumb:hover {
             transform: scale(1.1);
-            box-shadow: 0 6px 20px rgba(16, 185, 129, 0.6);
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.6);
         }
         
         /* Signal indicators with glow effects */
         .signal-active {
-            box-shadow: 0 0 20px currentColor;
+            box-shadow: 0 0 15px currentColor;
             animation: pulse 2s infinite;
         }
         
@@ -149,8 +149,8 @@
         }
         
         .trading-card:hover {
-            transform: translateY(-4px);
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
+            transform: translateY(-2px);
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.3);
         }
         
         /* Connection status animations */
@@ -167,8 +167,8 @@
         .chart-container {
             position: relative;
             background: linear-gradient(135deg, rgba(15, 23, 42, 0.8) 0%, rgba(30, 41, 59, 0.8) 100%);
-            border-radius: 12px;
-            padding: 20px;
+            border-radius: 8px;
+            padding: 12px;
             border: 1px solid rgba(16, 185, 129, 0.2);
         }
         
@@ -202,13 +202,13 @@
         /* Premium button styles */
         .btn-premium {
             background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-            box-shadow: 0 4px 15px rgba(16, 185, 129, 0.3);
+            box-shadow: 0 3px 12px rgba(16, 185, 129, 0.3);
             transition: all 0.3s ease;
         }
         
         .btn-premium:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 25px rgba(16, 185, 129, 0.4);
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(16, 185, 129, 0.4);
         }
         
         .btn-premium:active {
@@ -218,13 +218,13 @@
         /* Pair item styles */
         .pair-item {
             transition: all 0.2s ease;
-            border-left: 3px solid transparent;
+            border-left: 2px solid transparent;
         }
         
         .pair-item:hover {
             background: rgba(16, 185, 129, 0.1);
             border-left-color: #10b981;
-            transform: translateX(2px);
+            transform: translateX(1px);
         }
         
         .pair-item.selected {
@@ -241,54 +241,78 @@
         .category-indices { @apply bg-purple-500/20 text-purple-400; }
         .category-exotic { @apply bg-pink-500/20 text-pink-400; }
         .category-other { @apply bg-gray-500/20 text-gray-400; }
+
+        /* Compact layout optimizations */
+        .compact-spacing {
+            gap: 0.75rem;
+        }
+        
+        .compact-padding {
+            padding: 0.75rem;
+        }
+        
+        /* Ensure single page view */
+        body {
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        main {
+            height: calc(100vh - 5rem - 3rem); /* Header height - Footer height */
+            overflow-y: auto;
+        }
+        
+        .full-height {
+            height: calc(100vh - 8rem);
+        }
     </style>
 </head>
-<body class="bg-gray-950 text-white min-h-screen gradient-bg overflow-x-hidden">
-    <!-- Enhanced Header with Glassmorphism -->
+<body class="bg-gray-950 text-white h-screen gradient-bg overflow-hidden">
+    <!-- Compact Header with Glassmorphism -->
     <header class="glass-dark sticky top-0 z-50 border-b border-white/10">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div class="flex items-center justify-between h-20">
+            <div class="flex items-center justify-between h-16">
                 <!-- Logo and Title -->
-                <div class="flex items-center space-x-4">
+                <div class="flex items-center space-x-3">
                     <div class="relative">
-                        <div class="absolute inset-0 bg-primary-500 rounded-xl blur-lg opacity-30"></div>
-                        <div class="relative bg-gradient-primary p-3 rounded-xl">
-                            <i data-lucide="trending-up" class="w-8 h-8 text-white"></i>
+                        <div class="absolute inset-0 bg-primary-500 rounded-lg blur-md opacity-30"></div>
+                        <div class="relative bg-gradient-primary p-2 rounded-lg">
+                            <i data-lucide="trending-up" class="w-6 h-6 text-white"></i>
                         </div>
                     </div>
                     <div>
-                        <h1 class="text-2xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
+                        <h1 class="text-xl font-bold bg-gradient-to-r from-white to-gray-300 bg-clip-text text-transparent">
                             SuperTrend Pro MT5
                         </h1>
-                        <p class="text-sm text-gray-400 font-medium">Professional Trading Dashboard</p>
+                        <p class="text-xs text-gray-400 font-medium">Professional Trading Dashboard</p>
                     </div>
                 </div>
                 
                 <!-- Connection Status with Enhanced Design -->
-                <div class="flex items-center space-x-6">
-                    <div id="connection-status" class="flex items-center px-4 py-2 rounded-full glass border border-red-500/30 connection-pulse">
-                        <div class="w-2 h-2 bg-red-500 rounded-full mr-3 animate-pulse"></div>
+                <div class="flex items-center space-x-4">
+                    <div id="connection-status" class="flex items-center px-3 py-1.5 rounded-full glass border border-red-500/30 connection-pulse">
+                        <div class="w-2 h-2 bg-red-500 rounded-full mr-2 animate-pulse"></div>
                         <i data-lucide="wifi-off" class="w-4 h-4 mr-2 text-red-400"></i>
-                        <span class="text-red-400 font-medium">Connecting to MT5...</span>
+                        <span class="text-red-400 font-medium text-sm">Connecting to MT5...</span>
                     </div>
                     
                     <!-- Control Buttons -->
-                    <div class="flex items-center space-x-3">
-                        <button id="connection-test-btn" class="p-3 rounded-xl glass hover:bg-white/10 text-gray-300 hover:text-white transition-all duration-300 group">
-                            <i data-lucide="activity" class="w-5 h-5 group-hover:scale-110 transition-transform"></i>
+                    <div class="flex items-center space-x-2">
+                        <button id="connection-test-btn" class="p-2 rounded-lg glass hover:bg-white/10 text-gray-300 hover:text-white transition-all duration-300 group">
+                            <i data-lucide="activity" class="w-4 h-4 group-hover:scale-110 transition-transform"></i>
                         </button>
                         
-                        <button id="settings-btn" class="p-3 rounded-xl glass hover:bg-white/10 text-gray-300 hover:text-white transition-all duration-300 group">
-                            <i data-lucide="settings" class="w-5 h-5 group-hover:rotate-90 transition-transform duration-300"></i>
+                        <button id="settings-btn" class="p-2 rounded-lg glass hover:bg-white/10 text-gray-300 hover:text-white transition-all duration-300 group">
+                            <i data-lucide="settings" class="w-4 h-4 group-hover:rotate-90 transition-transform duration-300"></i>
                         </button>
                         
-                        <button id="play-pause-btn" class="flex items-center px-6 py-3 rounded-xl btn-premium text-white font-medium">
-                            <i data-lucide="pause" class="w-4 h-4 mr-2"></i>
+                        <button id="play-pause-btn" class="flex items-center px-4 py-2 rounded-lg btn-premium text-white font-medium text-sm">
+                            <i data-lucide="pause" class="w-4 h-4 mr-1"></i>
                             <span>Pause</span>
                         </button>
                         
-                        <button id="reset-btn" class="flex items-center px-4 py-3 rounded-xl glass hover:bg-white/10 text-white font-medium transition-all duration-300">
-                            <i data-lucide="rotate-ccw" class="w-4 h-4 mr-2"></i>
+                        <button id="reset-btn" class="flex items-center px-3 py-2 rounded-lg glass hover:bg-white/10 text-white font-medium transition-all duration-300 text-sm">
+                            <i data-lucide="rotate-ccw" class="w-4 h-4 mr-1"></i>
                             Reset
                         </button>
                     </div>
@@ -297,60 +321,60 @@
         </div>
     </header>
 
-    <!-- Main Dashboard Content -->
-    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div class="grid grid-cols-1 xl:grid-cols-4 gap-8">
+    <!-- Main Dashboard Content - Optimized for Single Page -->
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 full-height">
+        <div class="grid grid-cols-1 xl:grid-cols-4 gap-4 h-full">
             <!-- Left Column - Trading Pairs & Alerts -->
-            <div class="space-y-6">
-                <!-- Enhanced Trading Pairs Panel -->
-                <div class="trading-card glass-dark rounded-2xl p-6 border border-white/10">
-                    <div class="flex items-center justify-between mb-6">
-                        <div class="flex items-center space-x-3">
-                            <div class="p-2 bg-blue-500/20 rounded-lg">
-                                <i data-lucide="bar-chart-3" class="w-5 h-5 text-blue-400"></i>
+            <div class="space-y-4 h-full">
+                <!-- Compact Trading Pairs Panel -->
+                <div class="trading-card glass-dark rounded-xl compact-padding border border-white/10 h-3/5">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center space-x-2">
+                            <div class="p-1.5 bg-blue-500/20 rounded-md">
+                                <i data-lucide="bar-chart-3" class="w-4 h-4 text-blue-400"></i>
                             </div>
-                            <h2 class="text-xl font-bold text-white">Trading Pairs</h2>
+                            <h2 class="text-lg font-bold text-white">Trading Pairs</h2>
                         </div>
-                        <div id="pairs-count" class="px-3 py-1 bg-gray-700/50 text-gray-300 rounded-lg text-sm font-medium">Loading...</div>
+                        <div id="pairs-count" class="px-2 py-1 bg-gray-700/50 text-gray-300 rounded-md text-xs font-medium">Loading...</div>
                     </div>
                     
-                    <!-- Enhanced Search and Filters -->
-                    <div class="space-y-4">
+                    <!-- Compact Search and Filters -->
+                    <div class="space-y-3">
                         <div class="relative">
                             <input 
                                 type="text" 
                                 id="pair-search" 
-                                placeholder="Search trading pairs..." 
-                                class="w-full px-4 py-3 pl-12 glass rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all"
+                                placeholder="Search pairs..." 
+                                class="w-full px-3 py-2 pl-9 glass rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all text-sm"
                             >
-                            <i data-lucide="search" class="absolute left-4 top-3.5 w-5 h-5 text-gray-400"></i>
+                            <i data-lucide="search" class="absolute left-3 top-2.5 w-4 h-4 text-gray-400"></i>
                         </div>
                         
-                        <!-- Category Filters with Enhanced Design -->
-                        <div class="flex flex-wrap gap-2">
-                            <button class="category-filter active px-3 py-1.5 text-xs rounded-lg bg-primary-500 text-white font-medium transition-all" data-category="all">All</button>
-                            <button class="category-filter px-3 py-1.5 text-xs rounded-lg glass text-gray-300 hover:bg-white/10 transition-all" data-category="major">Major</button>
-                            <button class="category-filter px-3 py-1.5 text-xs rounded-lg glass text-gray-300 hover:bg-white/10 transition-all" data-category="minor">Minor</button>
-                            <button class="category-filter px-3 py-1.5 text-xs rounded-lg glass text-gray-300 hover:bg-white/10 transition-all" data-category="crypto">Crypto</button>
-                            <button class="category-filter px-3 py-1.5 text-xs rounded-lg glass text-gray-300 hover:bg-white/10 transition-all" data-category="commodities">Gold</button>
+                        <!-- Compact Category Filters -->
+                        <div class="flex flex-wrap gap-1">
+                            <button class="category-filter active px-2 py-1 text-xs rounded-md bg-primary-500 text-white font-medium transition-all" data-category="all">All</button>
+                            <button class="category-filter px-2 py-1 text-xs rounded-md glass text-gray-300 hover:bg-white/10 transition-all" data-category="major">Major</button>
+                            <button class="category-filter px-2 py-1 text-xs rounded-md glass text-gray-300 hover:bg-white/10 transition-all" data-category="minor">Minor</button>
+                            <button class="category-filter px-2 py-1 text-xs rounded-md glass text-gray-300 hover:bg-white/10 transition-all" data-category="crypto">Crypto</button>
+                            <button class="category-filter px-2 py-1 text-xs rounded-md glass text-gray-300 hover:bg-white/10 transition-all" data-category="commodities">Gold</button>
                         </div>
                         
-                        <!-- Enhanced Pairs List -->
-                        <div id="pairs-list-container" class="h-80 overflow-y-auto custom-scrollbar">
-                            <div id="pairs-list" class="space-y-2">
+                        <!-- Compact Pairs List -->
+                        <div id="pairs-list-container" class="h-48 overflow-y-auto custom-scrollbar">
+                            <div id="pairs-list" class="space-y-1">
                                 <!-- Pairs will be populated here -->
-                                <div class="text-center text-gray-400 py-8">
-                                    <i data-lucide="loader" class="w-8 h-8 mx-auto mb-3 animate-spin"></i>
-                                    <p class="font-medium">Loading pairs...</p>
-                                    <p class="text-sm">Connecting to MT5...</p>
+                                <div class="text-center text-gray-400 py-6">
+                                    <i data-lucide="loader" class="w-6 h-6 mx-auto mb-2 animate-spin"></i>
+                                    <p class="font-medium text-sm">Loading pairs...</p>
+                                    <p class="text-xs">Connecting to MT5...</p>
                                 </div>
                             </div>
                         </div>
                         
-                        <!-- Selected Pair Info -->
-                        <div id="selected-pair-info" class="glass rounded-xl p-4 hidden animate-fade-in">
-                            <h4 class="text-white font-medium mb-3">Pair Details</h4>
-                            <div class="space-y-2 text-sm">
+                        <!-- Compact Selected Pair Info -->
+                        <div id="selected-pair-info" class="glass rounded-lg p-3 hidden animate-fade-in">
+                            <h4 class="text-white font-medium mb-2 text-sm">Pair Details</h4>
+                            <div class="space-y-1 text-xs">
                                 <div class="flex justify-between">
                                     <span class="text-gray-400">Digits:</span>
                                     <span id="pair-digits" class="text-white font-medium">5</span>
@@ -372,257 +396,211 @@
                     </div>
                 </div>
 
-                <!-- Enhanced Trading Alerts -->
-                <div class="trading-card glass-dark rounded-2xl p-6 border border-white/10">
-                    <div class="flex items-center justify-between mb-6">
-                        <div class="flex items-center space-x-3">
-                            <div class="p-2 bg-yellow-500/20 rounded-lg">
-                                <i data-lucide="bell" class="w-5 h-5 text-yellow-400"></i>
+                <!-- Compact Trading Alerts -->
+                <div class="trading-card glass-dark rounded-xl compact-padding border border-white/10 h-2/5">
+                    <div class="flex items-center justify-between mb-3">
+                        <div class="flex items-center space-x-2">
+                            <div class="p-1.5 bg-yellow-500/20 rounded-md">
+                                <i data-lucide="bell" class="w-4 h-4 text-yellow-400"></i>
                             </div>
-                            <h2 class="text-xl font-bold text-white">Trading Alerts</h2>
+                            <h2 class="text-lg font-bold text-white">Trading Alerts</h2>
                         </div>
-                        <button id="clear-alerts" class="p-2 rounded-lg glass hover:bg-white/10 text-gray-300 hover:text-white transition-all">
-                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                        <button id="clear-alerts" class="p-1.5 rounded-md glass hover:bg-white/10 text-gray-300 hover:text-white transition-all">
+                            <i data-lucide="trash-2" class="w-3 h-3"></i>
                         </button>
                     </div>
                     
-                    <div id="alerts-content" class="space-y-3 max-h-64 overflow-y-auto custom-scrollbar">
-                        <div class="text-center text-gray-400 py-8">
-                            <i data-lucide="bell" class="w-12 h-12 mx-auto mb-3 opacity-50"></i>
-                            <p class="font-medium">No signals yet</p>
-                            <p class="text-sm">Trading signals will appear here when conditions are met</p>
+                    <div id="alerts-content" class="space-y-2 h-32 overflow-y-auto custom-scrollbar">
+                        <div class="text-center text-gray-400 py-6">
+                            <i data-lucide="bell" class="w-8 h-8 mx-auto mb-2 opacity-50"></i>
+                            <p class="font-medium text-sm">No signals yet</p>
+                            <p class="text-xs">Trading signals will appear here</p>
                         </div>
                     </div>
                 </div>
             </div>
             
             <!-- Middle Column - Trading Chart and Analysis -->
-            <div class="xl:col-span-2 space-y-8">
-                <!-- Enhanced Price Chart Section -->
-                <div class="trading-card glass-dark rounded-2xl p-8 border border-white/10">
-                    <div class="flex items-center justify-between mb-8">
-                        <div class="flex items-center space-x-4">
-                            <div class="p-2 bg-blue-500/20 rounded-lg">
-                                <i data-lucide="candlestick-chart" class="w-6 h-6 text-blue-400"></i>
+            <div class="xl:col-span-2 space-y-4 h-full">
+                <!-- Compact Price Chart Section -->
+                <div class="trading-card glass-dark rounded-xl p-4 border border-white/10 h-3/5">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center space-x-3">
+                            <div class="p-1.5 bg-blue-500/20 rounded-md">
+                                <i data-lucide="candlestick-chart" class="w-5 h-5 text-blue-400"></i>
                             </div>
                             <div>
-                                <h2 class="text-2xl font-bold text-white">Live Market Analysis</h2>
-                                <div class="flex items-center space-x-3 mt-1">
-                                    <span id="current-symbol" class="px-3 py-1 bg-blue-500/20 text-blue-400 rounded-lg text-sm font-medium">EURUSD</span>
-                                    <span id="timeframe-indicator" class="px-3 py-1 bg-gray-700/50 text-gray-300 rounded-lg text-sm">M15</span>
+                                <h2 class="text-xl font-bold text-white">Live Market Analysis</h2>
+                                <div class="flex items-center space-x-2 mt-1">
+                                    <span id="current-symbol" class="px-2 py-1 bg-blue-500/20 text-blue-400 rounded-md text-xs font-medium">EURUSD</span>
+                                    <span id="timeframe-indicator" class="px-2 py-1 bg-gray-700/50 text-gray-300 rounded-md text-xs">M15</span>
                                 </div>
                             </div>
                         </div>
                         
-                        <!-- Price Display with Enhanced Design -->
+                        <!-- Compact Price Display -->
                         <div class="text-right">
-                            <div id="current-price" class="text-4xl font-bold text-white mb-1">1.08500</div>
-                            <div id="price-change" class="flex items-center justify-end text-primary-500">
-                                <i data-lucide="trending-up" class="w-5 h-5 mr-1"></i>
+                            <div id="current-price" class="text-3xl font-bold text-white mb-1">1.08500</div>
+                            <div id="price-change" class="flex items-center justify-end text-primary-500 text-sm">
+                                <i data-lucide="trending-up" class="w-4 h-4 mr-1"></i>
                                 <span class="font-medium">+0.0012 (+0.11%)</span>
                             </div>
                         </div>
                     </div>
                     
-                    <!-- Enhanced Market Data Grid -->
-                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-                        <div class="glass rounded-xl p-4 text-center">
-                            <div class="text-gray-400 text-sm mb-1">Bid</div>
-                            <div id="bid-price" class="text-danger-500 font-bold text-xl">1.08485</div>
+                    <!-- Compact Market Data Grid -->
+                    <div class="grid grid-cols-4 gap-3 mb-4">
+                        <div class="glass rounded-lg p-3 text-center">
+                            <div class="text-gray-400 text-xs mb-1">Bid</div>
+                            <div id="bid-price" class="text-danger-500 font-bold text-lg">1.08485</div>
                         </div>
-                        <div class="glass rounded-xl p-4 text-center">
-                            <div class="text-gray-400 text-sm mb-1">Ask</div>
-                            <div id="ask-price" class="text-primary-500 font-bold text-xl">1.08515</div>
+                        <div class="glass rounded-lg p-3 text-center">
+                            <div class="text-gray-400 text-xs mb-1">Ask</div>
+                            <div id="ask-price" class="text-primary-500 font-bold text-lg">1.08515</div>
                         </div>
-                        <div class="glass rounded-xl p-4 text-center">
-                            <div class="text-gray-400 text-sm mb-1">Spread</div>
-                            <div id="spread" class="text-yellow-400 font-bold text-lg">3.0 pips</div>
+                        <div class="glass rounded-lg p-3 text-center">
+                            <div class="text-gray-400 text-xs mb-1">Spread</div>
+                            <div id="spread" class="text-yellow-400 font-bold text-sm">3.0 pips</div>
                         </div>
-                        <div class="glass rounded-xl p-4 text-center">
-                            <div class="text-gray-400 text-sm mb-1">Volume</div>
-                            <div id="volume" class="text-white font-bold text-lg">1.2M</div>
+                        <div class="glass rounded-lg p-3 text-center">
+                            <div class="text-gray-400 text-xs mb-1">Volume</div>
+                            <div id="volume" class="text-white font-bold text-sm">1.2M</div>
                         </div>
                     </div>
                     
-                    <!-- Enhanced Chart Container -->
-                    <div class="chart-container h-96">
+                    <!-- Compact Chart Container -->
+                    <div class="chart-container h-64">
                         <canvas id="price-chart" class="w-full h-full"></canvas>
                     </div>
                 </div>
                 
-                <!-- SuperTrend Analysis with Premium Design -->
-                <div class="trading-card glass-dark rounded-2xl p-8 border border-white/10">
-                    <div class="flex items-center justify-between mb-8">
-                        <div class="flex items-center space-x-4">
-                            <div class="p-2 bg-primary-500/20 rounded-lg">
-                                <i data-lucide="activity" class="w-6 h-6 text-primary-500"></i>
+                <!-- Compact SuperTrend Analysis -->
+                <div class="trading-card glass-dark rounded-xl p-4 border border-white/10 h-2/5">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center space-x-3">
+                            <div class="p-1.5 bg-primary-500/20 rounded-md">
+                                <i data-lucide="activity" class="w-5 h-5 text-primary-500"></i>
                             </div>
-                            <h2 class="text-2xl font-bold text-white">SuperTrend Analysis</h2>
+                            <h2 class="text-xl font-bold text-white">SuperTrend Analysis</h2>
                         </div>
                         
-                        <!-- Trend Indicator -->
-                        <div id="trend-indicator" class="flex items-center px-4 py-2 rounded-full gradient-primary">
-                            <i data-lucide="trending-up" class="w-5 h-5 mr-2"></i>
-                            <span class="font-bold">BULLISH TREND</span>
+                        <!-- Compact Trend Indicator -->
+                        <div id="trend-indicator" class="flex items-center px-3 py-1.5 rounded-full gradient-primary text-sm">
+                            <i data-lucide="trending-up" class="w-4 h-4 mr-1"></i>
+                            <span class="font-bold">BULLISH</span>
                         </div>
                     </div>
                     
-                    <!-- Enhanced Trend Metrics -->
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                    <!-- Compact Trend Metrics -->
+                    <div class="grid grid-cols-3 gap-4 mb-4">
                         <!-- Trend Strength -->
-                        <div class="glass rounded-xl p-6">
-                            <div class="flex items-center justify-between mb-4">
-                                <h3 class="text-white font-semibold">Trend Strength</h3>
-                                <div id="trend-strength-value" class="text-primary-500 font-bold text-lg">78.5%</div>
+                        <div class="glass rounded-lg p-3">
+                            <div class="flex items-center justify-between mb-2">
+                                <h3 class="text-white font-semibold text-sm">Strength</h3>
+                                <div id="trend-strength-value" class="text-primary-500 font-bold text-sm">78.5%</div>
                             </div>
-                            <div class="bg-gray-700 rounded-full h-3 overflow-hidden">
+                            <div class="bg-gray-700 rounded-full h-2 overflow-hidden">
                                 <div id="trend-strength-bar" class="h-full gradient-primary transition-all duration-1000 ease-out" style="width: 78.5%"></div>
-                            </div>
-                            <div class="flex justify-between text-xs text-gray-400 mt-2">
-                                <span>Weak</span>
-                                <span>Strong</span>
                             </div>
                         </div>
                         
                         <!-- ATR Value -->
-                        <div class="glass rounded-xl p-6">
-                            <div class="flex items-center justify-between mb-4">
-                                <h3 class="text-white font-semibold">ATR (Volatility)</h3>
-                                <div id="atr-value" class="text-blue-400 font-bold text-lg">0.00125</div>
+                        <div class="glass rounded-lg p-3">
+                            <div class="flex items-center justify-between mb-2">
+                                <h3 class="text-white font-semibold text-sm">ATR</h3>
+                                <div id="atr-value" class="text-blue-400 font-bold text-sm">0.00125</div>
                             </div>
-                            <div class="text-gray-400 text-sm">
+                            <div class="text-gray-400 text-xs">
                                 <div class="flex justify-between">
                                     <span>Period:</span>
                                     <span id="atr-period-display">20</span>
-                                </div>
-                                <div class="flex justify-between mt-1">
-                                    <span>Multiplier:</span>
-                                    <span id="multiplier-display">2.0</span>
                                 </div>
                             </div>
                         </div>
                         
                         <!-- RSI Analysis -->
-                        <div class="glass rounded-xl p-6">
-                            <div class="flex items-center justify-between mb-4">
-                                <h3 class="text-white font-semibold">RSI Filter</h3>
-                                <div id="rsi-value" class="text-yellow-400 font-bold text-lg">65.4</div>
+                        <div class="glass rounded-lg p-3">
+                            <div class="flex items-center justify-between mb-2">
+                                <h3 class="text-white font-semibold text-sm">RSI</h3>
+                                <div id="rsi-value" class="text-yellow-400 font-bold text-sm">65.4</div>
                             </div>
-                            <div class="bg-gray-700 rounded-full h-3 overflow-hidden">
+                            <div class="bg-gray-700 rounded-full h-2 overflow-hidden">
                                 <div id="rsi-bar" class="h-full bg-gradient-to-r from-red-500 via-yellow-500 to-green-500 transition-all duration-1000" style="width: 65.4%"></div>
-                            </div>
-                            <div class="flex justify-between text-xs text-gray-400 mt-2">
-                                <span>30</span>
-                                <span>50</span>
-                                <span>70</span>
                             </div>
                         </div>
                     </div>
                     
-                    <!-- Signal Status with Enhanced Design -->
-                    <div class="glass rounded-xl p-6">
-                        <h3 class="text-white font-semibold mb-6">Trading Signals</h3>
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                            <div class="flex items-center justify-between p-4 bg-gray-800/50 rounded-lg">
-                                <div class="flex items-center space-x-3">
-                                    <div id="buy-signal-indicator" class="w-4 h-4 rounded-full border-2 border-gray-600"></div>
-                                    <span class="text-gray-300">Buy Signal</span>
+                    <!-- Compact Signal Status -->
+                    <div class="glass rounded-lg p-3">
+                        <h3 class="text-white font-semibold mb-3 text-sm">Trading Signals</h3>
+                        <div class="grid grid-cols-3 gap-3">
+                            <div class="flex items-center justify-between p-2 bg-gray-800/50 rounded-md">
+                                <div class="flex items-center space-x-2">
+                                    <div id="buy-signal-indicator" class="w-3 h-3 rounded-full border-2 border-gray-600"></div>
+                                    <span class="text-gray-300 text-xs">Buy</span>
                                 </div>
-                                <div id="buy-signal-strength" class="text-sm text-gray-400">--</div>
+                                <div id="buy-signal-strength" class="text-xs text-gray-400">--</div>
                             </div>
                             
-                            <div class="flex items-center justify-between p-4 bg-gray-800/50 rounded-lg">
-                                <div class="flex items-center space-x-3">
-                                    <div id="sell-signal-indicator" class="w-4 h-4 rounded-full border-2 border-gray-600"></div>
-                                    <span class="text-gray-300">Sell Signal</span>
+                            <div class="flex items-center justify-between p-2 bg-gray-800/50 rounded-md">
+                                <div class="flex items-center space-x-2">
+                                    <div id="sell-signal-indicator" class="w-3 h-3 rounded-full border-2 border-gray-600"></div>
+                                    <span class="text-gray-300 text-xs">Sell</span>
                                 </div>
-                                <div id="sell-signal-strength" class="text-sm text-gray-400">--</div>
+                                <div id="sell-signal-strength" class="text-xs text-gray-400">--</div>
                             </div>
                             
-                            <div class="flex items-center justify-between p-4 bg-gray-800/50 rounded-lg">
-                                <div class="flex items-center space-x-3">
-                                    <div id="strong-signal-indicator" class="w-4 h-4 rounded-full border-2 border-gray-600"></div>
-                                    <span class="text-gray-300">Strong Signal</span>
+                            <div class="flex items-center justify-between p-2 bg-gray-800/50 rounded-md">
+                                <div class="flex items-center space-x-2">
+                                    <div id="strong-signal-indicator" class="w-3 h-3 rounded-full border-2 border-gray-600"></div>
+                                    <span class="text-gray-300 text-xs">Strong</span>
                                 </div>
-                                <div id="strong-signal-confidence" class="text-sm text-gray-400">--</div>
+                                <div id="strong-signal-confidence" class="text-xs text-gray-400">--</div>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Enhanced Settings Panel -->
-                <div id="settings-panel" class="trading-card glass-dark rounded-2xl p-6 border border-white/10 hidden animate-slide-up">
-                    <div class="flex items-center justify-between mb-6">
-                        <div class="flex items-center space-x-3">
-                            <div class="p-2 bg-primary-500/20 rounded-lg">
-                                <i data-lucide="sliders" class="w-5 h-5 text-primary-500"></i>
+                <!-- Compact Settings Panel -->
+                <div id="settings-panel" class="trading-card glass-dark rounded-xl p-4 border border-white/10 hidden animate-slide-up">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center space-x-2">
+                            <div class="p-1.5 bg-primary-500/20 rounded-md">
+                                <i data-lucide="sliders" class="w-4 h-4 text-primary-500"></i>
                             </div>
-                            <h2 class="text-xl font-bold text-white">SuperTrend Parameters</h2>
+                            <h2 class="text-lg font-bold text-white">SuperTrend Parameters</h2>
                         </div>
-                        <button id="close-settings" class="p-2 rounded-lg glass hover:bg-white/10 text-gray-300 hover:text-white transition-all">
-                            <i data-lucide="x" class="w-5 h-5"></i>
+                        <button id="close-settings" class="p-1.5 rounded-md glass hover:bg-white/10 text-gray-300 hover:text-white transition-all">
+                            <i data-lucide="x" class="w-4 h-4"></i>
                         </button>
                     </div>
                     
-                    <div class="space-y-6">
+                    <div class="space-y-4">
                         <!-- Core Parameters -->
-                        <div class="glass rounded-xl p-4">
-                            <h3 class="text-white font-semibold mb-4">Core Settings</h3>
-                            <div class="space-y-6">
+                        <div class="glass rounded-lg p-3">
+                            <h3 class="text-white font-semibold mb-3 text-sm">Core Settings</h3>
+                            <div class="space-y-4">
                                 <div>
-                                    <div class="flex justify-between items-center mb-3">
-                                        <label class="text-gray-300 font-medium">ATR Period</label>
-                                        <span id="atr-period-value" class="text-white font-bold">20</span>
+                                    <div class="flex justify-between items-center mb-2">
+                                        <label class="text-gray-300 font-medium text-sm">ATR Period</label>
+                                        <span id="atr-period-value" class="text-white font-bold text-sm">20</span>
                                     </div>
                                     <input type="range" id="atr-period" min="5" max="50" value="20" class="w-full">
-                                    <div class="flex justify-between text-xs text-gray-400 mt-1">
-                                        <span>5</span>
-                                        <span>50</span>
-                                    </div>
                                 </div>
                                 
                                 <div>
-                                    <div class="flex justify-between items-center mb-3">
-                                        <label class="text-gray-300 font-medium">Multiplier</label>
-                                        <span id="multiplier-value" class="text-white font-bold">2.0</span>
+                                    <div class="flex justify-between items-center mb-2">
+                                        <label class="text-gray-300 font-medium text-sm">Multiplier</label>
+                                        <span id="multiplier-value" class="text-white font-bold text-sm">2.0</span>
                                     </div>
                                     <input type="range" id="multiplier" min="0.5" max="5" step="0.1" value="2.0" class="w-full">
-                                    <div class="flex justify-between text-xs text-gray-400 mt-1">
-                                        <span>0.5</span>
-                                        <span>5.0</span>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <!-- RSI Filter -->
-                        <div class="glass rounded-xl p-4">
-                            <div class="flex items-center justify-between mb-4">
-                                <h3 class="text-white font-semibold">RSI Filter</h3>
-                                <label class="relative inline-flex items-center cursor-pointer">
-                                    <input type="checkbox" id="use-rsi-filter" checked class="sr-only">
-                                    <div class="w-11 h-6 bg-gray-600 rounded-full peer peer-checked:bg-primary-500 transition-colors">
-                                        <div class="w-5 h-5 bg-white rounded-full shadow transform transition-transform peer-checked:translate-x-5 translate-x-0 mt-0.5 ml-0.5"></div>
-                                    </div>
-                                </label>
-                            </div>
-                            
-                            <div>
-                                <div class="flex justify-between items-center mb-3">
-                                    <label class="text-gray-300 font-medium">RSI Period</label>
-                                    <span id="rsi-period-value" class="text-white font-bold">14</span>
-                                </div>
-                                <input type="range" id="rsi-period" min="5" max="30" value="14" class="w-full">
-                                <div class="flex justify-between text-xs text-gray-400 mt-1">
-                                    <span>5</span>
-                                    <span>30</span>
                                 </div>
                             </div>
                         </div>
                         
                         <!-- Apply Button -->
-                        <button id="apply-settings" class="w-full py-3 btn-premium text-white font-semibold rounded-xl">
-                            <i data-lucide="check" class="w-5 h-5 mr-2 inline"></i>
+                        <button id="apply-settings" class="w-full py-2 btn-premium text-white font-semibold rounded-lg text-sm">
+                            <i data-lucide="check" class="w-4 h-4 mr-1 inline"></i>
                             Apply Settings
                         </button>
                     </div>
@@ -630,32 +608,32 @@
             </div>
             
             <!-- Right Column - MT5 Account -->
-            <div class="space-y-6">
-                <!-- Enhanced MT5 Connection & Account -->
-                <div class="trading-card glass-dark rounded-2xl p-6 border border-white/10">
-                    <div class="flex items-center justify-between mb-6">
-                        <div class="flex items-center space-x-3">
-                            <div class="p-2 bg-green-500/20 rounded-lg">
-                                <i data-lucide="server" class="w-5 h-5 text-green-400"></i>
+            <div class="space-y-4 h-full">
+                <!-- Compact MT5 Connection & Account -->
+                <div class="trading-card glass-dark rounded-xl compact-padding border border-white/10 h-full">
+                    <div class="flex items-center justify-between mb-4">
+                        <div class="flex items-center space-x-2">
+                            <div class="p-1.5 bg-green-500/20 rounded-md">
+                                <i data-lucide="server" class="w-4 h-4 text-green-400"></i>
                             </div>
-                            <h2 class="text-xl font-bold text-white">MT5 Account</h2>
+                            <h2 class="text-lg font-bold text-white">MT5 Account</h2>
                         </div>
-                        <button id="refresh-connection" class="p-2 rounded-lg glass hover:bg-white/10 text-gray-300 hover:text-white transition-all group">
-                            <i data-lucide="refresh-cw" class="w-5 h-5 group-hover:rotate-180 transition-transform duration-500"></i>
+                        <button id="refresh-connection" class="p-1.5 rounded-md glass hover:bg-white/10 text-gray-300 hover:text-white transition-all group">
+                            <i data-lucide="refresh-cw" class="w-4 h-4 group-hover:rotate-180 transition-transform duration-500"></i>
                         </button>
                     </div>
                     
-                    <div id="mt5-status-content">
-                        <!-- Connection Status -->
-                        <div class="glass rounded-xl p-4 mb-4">
-                            <div class="flex items-center justify-between mb-4">
-                                <h3 class="text-white font-semibold">Connection Status</h3>
-                                <div id="connection-type-badge" class="px-3 py-1 rounded-full text-xs font-medium bg-yellow-500/20 text-yellow-400">
+                    <div id="mt5-status-content" class="space-y-3">
+                        <!-- Compact Connection Status -->
+                        <div class="glass rounded-lg p-3">
+                            <div class="flex items-center justify-between mb-3">
+                                <h3 class="text-white font-semibold text-sm">Connection Status</h3>
+                                <div id="connection-type-badge" class="px-2 py-1 rounded-full text-xs font-medium bg-yellow-500/20 text-yellow-400">
                                     Connecting...
                                 </div>
                             </div>
                             
-                            <div class="space-y-3 text-sm">
+                            <div class="space-y-2 text-xs">
                                 <div class="flex justify-between items-center">
                                     <span class="text-gray-400">Server:</span>
                                     <span id="mt5-server" class="text-white font-medium">Connecting...</span>
@@ -675,16 +653,16 @@
                             </div>
                         </div>
                         
-                        <!-- Enhanced Account Balance -->
-                        <div class="glass rounded-xl p-4 mb-4">
-                            <h3 class="text-white font-semibold mb-4">Account Balance</h3>
-                            <div class="space-y-4">
+                        <!-- Compact Account Balance -->
+                        <div class="glass rounded-lg p-3">
+                            <h3 class="text-white font-semibold mb-3 text-sm">Account Balance</h3>
+                            <div class="space-y-3">
                                 <div class="text-center">
-                                    <div id="account-balance" class="text-3xl font-bold text-white mb-1">$0.00</div>
-                                    <div id="balance-change" class="text-sm text-gray-400">+0.00%</div>
+                                    <div id="account-balance" class="text-2xl font-bold text-white mb-1">$0.00</div>
+                                    <div id="balance-change" class="text-xs text-gray-400">+0.00%</div>
                                 </div>
                                 
-                                <div class="grid grid-cols-2 gap-4 text-sm">
+                                <div class="grid grid-cols-2 gap-3 text-xs">
                                     <div>
                                         <span class="text-gray-400 block">Equity</span>
                                         <span id="account-equity" class="text-white font-semibold">$0.00</span>
@@ -695,13 +673,13 @@
                                     </div>
                                 </div>
                                 
-                                <!-- Enhanced Margin Level -->
+                                <!-- Compact Margin Level -->
                                 <div>
-                                    <div class="flex justify-between text-sm mb-2">
+                                    <div class="flex justify-between text-xs mb-1">
                                         <span class="text-gray-400">Margin Level</span>
                                         <span id="margin-level-percent" class="text-white font-medium">0%</span>
                                     </div>
-                                    <div class="bg-gray-700 rounded-full h-3 overflow-hidden">
+                                    <div class="bg-gray-700 rounded-full h-2 overflow-hidden">
                                         <div id="margin-level-bar" class="h-full gradient-primary transition-all duration-1000" style="width: 0%"></div>
                                     </div>
                                     <div class="flex justify-between text-xs text-gray-500 mt-1">
@@ -712,21 +690,21 @@
                             </div>
                         </div>
                         
-                        <!-- Enhanced Trading Statistics -->
-                        <div class="glass rounded-xl p-4">
-                            <h3 class="text-white font-semibold mb-4">Trading Statistics</h3>
-                            <div class="grid grid-cols-2 gap-4">
-                                <div class="text-center p-3 bg-gray-800/50 rounded-lg">
-                                    <div id="open-positions" class="text-2xl font-bold text-blue-400">0</div>
-                                    <div class="text-gray-400 text-sm">Open Positions</div>
+                        <!-- Compact Trading Statistics -->
+                        <div class="glass rounded-lg p-3">
+                            <h3 class="text-white font-semibold mb-3 text-sm">Trading Statistics</h3>
+                            <div class="grid grid-cols-2 gap-2">
+                                <div class="text-center p-2 bg-gray-800/50 rounded-md">
+                                    <div id="open-positions" class="text-lg font-bold text-blue-400">0</div>
+                                    <div class="text-gray-400 text-xs">Open Positions</div>
                                 </div>
-                                <div class="text-center p-3 bg-gray-800/50 rounded-lg">
-                                    <div id="pending-orders" class="text-2xl font-bold text-yellow-400">0</div>
-                                    <div class="text-gray-400 text-sm">Pending Orders</div>
+                                <div class="text-center p-2 bg-gray-800/50 rounded-md">
+                                    <div id="pending-orders" class="text-lg font-bold text-yellow-400">0</div>
+                                    <div class="text-gray-400 text-xs">Pending Orders</div>
                                 </div>
-                                <div class="text-center p-3 bg-gray-800/50 rounded-lg col-span-2">
-                                    <div id="daily-pnl" class="text-2xl font-bold text-primary-500">+$0.00</div>
-                                    <div class="text-gray-400 text-sm">Daily P&L</div>
+                                <div class="text-center p-2 bg-gray-800/50 rounded-md col-span-2">
+                                    <div id="daily-pnl" class="text-lg font-bold text-primary-500">+$0.00</div>
+                                    <div class="text-gray-400 text-xs">Daily P&L</div>
                                 </div>
                             </div>
                         </div>
@@ -736,10 +714,10 @@
         </div>
     </main>
 
-    <!-- Enhanced Status Bar -->
-    <footer class="fixed bottom-0 left-0 right-0 glass-dark border-t border-white/10 px-4 py-3 z-40">
-        <div class="max-w-7xl mx-auto flex items-center justify-between text-sm">
-            <div class="flex items-center space-x-8">
+    <!-- Compact Status Bar -->
+    <footer class="fixed bottom-0 left-0 right-0 glass-dark border-t border-white/10 px-4 py-2 z-40">
+        <div class="max-w-7xl mx-auto flex items-center justify-between text-xs">
+            <div class="flex items-center space-x-6">
                 <div class="flex items-center space-x-2">
                     <div id="status-dot" class="w-2 h-2 bg-primary-500 rounded-full animate-pulse"></div>
                     <span class="text-gray-400">Status:</span>
@@ -759,13 +737,13 @@
                 </div>
             </div>
             
-            <div class="flex items-center space-x-6">
+            <div class="flex items-center space-x-4">
                 <div class="flex items-center space-x-2">
                     <span class="text-gray-400">Last Update:</span>
                     <span id="last-update" class="text-white font-medium">--:--:--</span>
                 </div>
                 <div class="flex items-center space-x-2">
-                    <i data-lucide="cpu" class="w-4 h-4 text-gray-400"></i>
+                    <i data-lucide="cpu" class="w-3 h-3 text-gray-400"></i>
                     <span id="performance-indicator" class="text-primary-500 font-medium">Optimal</span>
                 </div>
             </div>
@@ -775,23 +753,23 @@
     <!-- Connection Test Modal -->
     <div id="connection-test-modal" class="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 hidden">
         <div class="flex items-center justify-center min-h-screen p-4">
-            <div class="glass-dark rounded-2xl p-8 max-w-md w-full border border-white/10">
-                <div class="flex items-center justify-between mb-6">
-                    <h3 class="text-xl font-bold text-white">MT5 Connection Test</h3>
-                    <button id="close-test-modal" class="p-2 rounded-lg glass hover:bg-white/10 text-gray-300 hover:text-white transition-all">
-                        <i data-lucide="x" class="w-5 h-5"></i>
+            <div class="glass-dark rounded-xl p-6 max-w-md w-full border border-white/10">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-bold text-white">MT5 Connection Test</h3>
+                    <button id="close-test-modal" class="p-1.5 rounded-md glass hover:bg-white/10 text-gray-300 hover:text-white transition-all">
+                        <i data-lucide="x" class="w-4 h-4"></i>
                     </button>
                 </div>
                 
-                <div id="test-results" class="space-y-4">
-                    <div class="text-center py-8">
-                        <div class="animate-spin w-8 h-8 border-2 border-primary-500 border-t-transparent rounded-full mx-auto mb-4"></div>
-                        <p class="text-gray-400">Testing MT5 connection...</p>
+                <div id="test-results" class="space-y-3">
+                    <div class="text-center py-6">
+                        <div class="animate-spin w-6 h-6 border-2 border-primary-500 border-t-transparent rounded-full mx-auto mb-3"></div>
+                        <p class="text-gray-400 text-sm">Testing MT5 connection...</p>
                     </div>
                 </div>
                 
-                <button id="run-test" class="w-full mt-6 py-3 btn-premium text-white font-semibold rounded-xl">
-                    <i data-lucide="play" class="w-5 h-5 mr-2 inline"></i>
+                <button id="run-test" class="w-full mt-4 py-2 btn-premium text-white font-semibold rounded-lg text-sm">
+                    <i data-lucide="play" class="w-4 h-4 mr-1 inline"></i>
                     Run Test
                 </button>
             </div>
@@ -806,7 +784,7 @@
         
         // Initialize dashboard
         document.addEventListener('DOMContentLoaded', () => {
-            console.log('🚀 SuperTrend Pro MT5 Dashboard - Enhanced Version');
+            console.log('🚀 SuperTrend Pro MT5 Dashboard - Single Page Optimized');
         });
     </script>
 </body>
