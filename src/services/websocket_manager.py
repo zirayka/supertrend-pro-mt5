@@ -1,4 +1,4 @@
-"""WebSocket connection manager for real-time communication"""
+"""WebSocket connection manager for real-time MT5 data communication"""
 
 import asyncio
 import json
@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 
 class WebSocketManager:
-    """Manages WebSocket connections for real-time data"""
+    """Manages WebSocket connections for real-time MT5 data"""
     
     def __init__(self):
         self.active_connections: List[WebSocket] = []
@@ -133,6 +133,19 @@ class WebSocketManager:
         except Exception as e:
             logger.error(f"Error handling WebSocket message: {e}")
     
+    async def handle_mt5_event(self, event_type: str, data: dict):
+        """Handle events from MT5 connection manager"""
+        try:
+            # Broadcast MT5 events to subscribed clients
+            await self.broadcast_to_subscribers(event_type, data)
+            
+            # Special handling for connection events
+            if event_type == "connection":
+                await self.send_connection_status(data)
+            
+        except Exception as e:
+            logger.error(f"Error handling MT5 event: {e}")
+    
     async def send_connection_status(self, status: dict):
         """Send connection status to all clients"""
         await self.broadcast({
@@ -152,6 +165,18 @@ class WebSocketManager:
     async def send_signal(self, signal: dict):
         """Send trading signal to subscribed clients"""
         await self.broadcast_to_subscribers("signal", signal)
+    
+    async def send_account_info(self, data: dict):
+        """Send account info to subscribed clients"""
+        await self.broadcast_to_subscribers("account_info", data)
+    
+    async def send_positions(self, data: list):
+        """Send positions data to subscribed clients"""
+        await self.broadcast_to_subscribers("positions", data)
+    
+    async def send_orders(self, data: list):
+        """Send orders data to subscribed clients"""
+        await self.broadcast_to_subscribers("orders", data)
     
     def get_connection_count(self) -> int:
         """Get number of active connections"""

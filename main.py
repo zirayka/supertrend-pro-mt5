@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 SuperTrend Pro MT5 - Python Trading Dashboard
-Advanced SuperTrend indicator with MT5 integration
+Direct MT5 connection only - No demo mode or WebSocket
 """
 
 import asyncio
@@ -29,7 +29,7 @@ logger = logging.getLogger(__name__)
 # Initialize FastAPI app
 app = FastAPI(
     title="SuperTrend Pro MT5",
-    description="Advanced SuperTrend Trading Indicator Dashboard with MT5 Integration",
+    description="Advanced SuperTrend Trading Indicator Dashboard with Direct MT5 Integration",
     version="2.0.0",
     docs_url="/api/docs",
     redoc_url="/api/redoc"
@@ -49,13 +49,13 @@ app.include_router(api_router, prefix="/api")
 @app.on_event("startup")
 async def startup_event():
     """Initialize services on startup"""
-    logger.info("🚀 Starting SuperTrend Pro MT5 Dashboard")
+    logger.info("🚀 Starting SuperTrend Pro MT5 Dashboard - Direct MT5 Only")
     
     # Initialize MT5 connection
     await mt5_manager.initialize()
     
-    # Start background tasks
-    asyncio.create_task(mt5_manager.start_monitoring())
+    # Subscribe websocket manager to MT5 events
+    mt5_manager.subscribe(websocket_manager.handle_mt5_event)
     
     logger.info("✅ SuperTrend Pro MT5 Dashboard started successfully")
 
@@ -71,7 +71,7 @@ async def dashboard(request: Request):
     """Main dashboard page"""
     return templates.TemplateResponse("dashboard.html", {
         "request": request,
-        "title": "SuperTrend Pro MT5 Dashboard"
+        "title": "SuperTrend Pro MT5 Dashboard - Direct MT5 Connection"
     })
 
 @app.websocket("/ws")

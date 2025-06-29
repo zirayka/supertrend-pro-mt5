@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 SuperTrend Pro MT5 - Development Server
-Quick start script with MetaTrader5 integration
+Direct MT5 connection only - No demo mode
 """
 
 import os
@@ -55,27 +55,31 @@ def check_mt5_installation():
     try:
         import MetaTrader5 as mt5
         
-        # Try to initialize MT5 (this will fail if MT5 is not running, but that's OK)
+        # Try to initialize MT5
         if mt5.initialize():
             print("✅ MT5 Terminal is running and accessible")
             account_info = mt5.account_info()
             if account_info:
                 print(f"📊 Connected to account: {account_info.login} on {account_info.server}")
                 print(f"💰 Balance: ${account_info.balance:.2f}")
+                print(f"🏦 Currency: {account_info.currency}")
+                print(f"🔢 Leverage: 1:{account_info.leverage}")
             mt5.shutdown()
             return True
         else:
-            print("⚠️ MT5 Terminal is not running (this is OK for development)")
-            print("💡 To connect to live MT5 data:")
+            error_code = mt5.last_error()
+            print(f"⚠️ MT5 Terminal connection failed (Error: {error_code})")
+            print("💡 To connect to MT5:")
             print("   1. Start MetaTrader 5 Terminal")
             print("   2. Log into your trading account")
-            print("   3. Restart this application")
-            return True
+            print("   3. Enable 'Allow automated trading' in Tools → Options → Expert Advisors")
+            print("   4. Restart this application")
+            return False
             
     except Exception as e:
-        print(f"⚠️ MT5 check failed: {e}")
-        print("💡 This is normal if MT5 is not installed or running")
-        return True
+        print(f"❌ MT5 check failed: {e}")
+        print("💡 Please install MetaTrader 5 Terminal from your broker")
+        return False
 
 def create_directories():
     """Create necessary directories"""
@@ -104,16 +108,11 @@ def setup_environment():
                 port = 3000
                 print("⚠️ Could not find available port, using default 3000")
             
-            env_content = f"""# SuperTrend Pro MT5 Configuration
+            env_content = f"""# SuperTrend Pro MT5 Configuration - Direct MT5 Only
 HOST={host}
 PORT={port}
 DEBUG=true
 LOG_LEVEL=INFO
-
-# MT5 Connection Settings
-MT5_WEBSOCKET_URL=ws://localhost:8765
-MT5_FILE_SERVER_URL=http://localhost:3001
-MT5_FILES_PATH=
 
 # SuperTrend Default Settings
 DEFAULT_ATR_PERIOD=20
@@ -125,11 +124,11 @@ MAX_CANDLES=1000
 UPDATE_INTERVAL=1.0
 """
             env_file.write_text(env_content)
-            print(f"✅ Basic environment file created with port {port}")
+            print(f"✅ Environment file created with port {port}")
 
 def main():
-    """Main function with enhanced MT5 integration"""
-    print("🚀 SuperTrend Pro MT5 - Python Trading Dashboard")
+    """Main function with MT5 direct connection only"""
+    print("🚀 SuperTrend Pro MT5 - Direct Connection Only")
     print("=" * 60)
     
     # Check and install requirements
@@ -137,7 +136,7 @@ def main():
         sys.exit(1)
     
     # Check MT5 installation and connection
-    check_mt5_installation()
+    mt5_available = check_mt5_installation()
     
     # Create directories
     create_directories()
@@ -182,19 +181,32 @@ def main():
     print(f"\n🎯 Starting SuperTrend Pro MT5 Dashboard...")
     print(f"📊 Dashboard will be available at: http://{host}:{port}")
     print(f"📚 API documentation at: http://{host}:{port}/api/docs")
+    
+    print("\n🔗 Connection Mode:")
+    print("   ✅ Direct MT5 Connection Only")
+    print("   ❌ Demo Mode Disabled")
+    print("   ❌ WebSocket Mode Disabled")
+    print("   ❌ File-based Mode Disabled")
+    
     print("\n💡 Features:")
-    print("   ✅ Direct MT5 Terminal integration via MetaTrader5 package")
-    print("   ✅ Real-time tick data and account information")
+    print("   ✅ Real-time MT5 account data")
+    print("   ✅ Live tick data and market information")
     print("   ✅ Advanced SuperTrend indicator calculations")
-    print("   ✅ Multiple connection methods (Direct, WebSocket, File-based)")
-    print("   ✅ Live trading capabilities (when connected to MT5)")
-    print("\n🔗 Connection Methods:")
-    print("   1. Direct MT5 (Recommended) - Uses MetaTrader5 Python package")
-    print("   2. WebSocket - Real-time data via WebSocket server")
-    print("   3. File-based - Reads data from MT5 Expert Advisor files")
-    print("   4. Demo Mode - Simulated data for testing")
-    print("\n💡 Tips:")
-    print("   - For live data: Start MT5 Terminal and log into your account")
+    print("   ✅ Trading positions and orders monitoring")
+    print("   ✅ Account balance and margin tracking")
+    
+    if not mt5_available:
+        print("\n⚠️ MT5 Connection Status:")
+        print("   ❌ MT5 Terminal not connected")
+        print("   💡 Dashboard will show connection instructions")
+        print("   🔄 Connection will be attempted when MT5 is available")
+    else:
+        print("\n✅ MT5 Connection Status:")
+        print("   ✅ MT5 Terminal is ready")
+        print("   📊 Live data will be available immediately")
+    
+    print("\n💡 Usage Tips:")
+    print("   - Ensure MT5 Terminal is running for live data")
     print("   - Check connection status in the dashboard")
     print("   - Use API endpoints for programmatic access")
     print("   - Press Ctrl+C to stop the server")

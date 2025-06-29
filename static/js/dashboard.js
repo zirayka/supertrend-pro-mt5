@@ -1,6 +1,6 @@
 /**
  * SuperTrend Pro MT5 Dashboard - JavaScript
- * Real-time trading dashboard with WebSocket communication
+ * Real-time trading dashboard with direct MT5 connection only
  */
 
 class SuperTrendDashboard {
@@ -27,7 +27,7 @@ class SuperTrendDashboard {
     }
     
     init() {
-        console.log('🚀 Initializing SuperTrend Dashboard');
+        console.log('🚀 Initializing SuperTrend Dashboard - MT5 Direct Only');
         
         this.setupWebSocket();
         this.setupEventListeners();
@@ -36,6 +36,7 @@ class SuperTrendDashboard {
         
         // Start periodic updates
         setInterval(() => this.updateLastUpdateTime(), 1000);
+        setInterval(() => this.refreshData(), 5000); // Refresh every 5 seconds
     }
     
     setupWebSocket() {
@@ -54,7 +55,7 @@ class SuperTrendDashboard {
             // Subscribe to events
             this.ws.send(JSON.stringify({
                 type: 'subscribe',
-                events: ['tick', 'market_data', 'connection_status', 'signal', 'account_info', 'symbols']
+                events: ['tick', 'market_data', 'connection_status', 'signal', 'account_info', 'symbols', 'positions', 'orders']
             }));
         };
         
@@ -97,6 +98,12 @@ class SuperTrendDashboard {
                 break;
             case 'symbols':
                 this.updateAvailablePairs(data.data);
+                break;
+            case 'positions':
+                this.updatePositions(data.data);
+                break;
+            case 'orders':
+                this.updateOrders(data.data);
                 break;
             case 'signal':
                 this.addTradingSignal(data.data);
@@ -266,76 +273,107 @@ class SuperTrendDashboard {
     
     async loadInitialData() {
         try {
+            console.log('📊 Loading initial data from MT5...');
+            
             // Load dashboard state
             const response = await fetch('/api/dashboard-state');
-            const state = await response.json();
-            
-            this.updateDashboardState(state);
+            if (response.ok) {
+                const state = await response.json();
+                this.updateDashboardState(state);
+            } else {
+                console.warn('Failed to load dashboard state, showing connection error');
+                this.showConnectionError();
+            }
             
             // Load available pairs
-            this.loadAvailablePairs();
+            await this.loadAvailablePairs();
+            
+            // Load account summary
+            await this.loadAccountSummary();
             
         } catch (error) {
             console.error('Error loading initial data:', error);
-            // Initialize with demo data if API fails
-            this.initializeDemoData();
+            this.showConnectionError();
         }
     }
     
     async loadAvailablePairs() {
         try {
             const response = await fetch('/api/pairs');
-            const pairs = await response.json();
-            
-            this.updateAvailablePairs(pairs);
-            
+            if (response.ok) {
+                const pairs = await response.json();
+                this.updateAvailablePairs(pairs);
+            } else {
+                console.warn('Failed to load pairs from MT5');
+            }
         } catch (error) {
             console.error('Error loading pairs:', error);
-            // Initialize with demo pairs
-            this.initializeDemoPairs();
         }
     }
     
-    initializeDemoData() {
-        // Demo account info
-        this.accountInfo = {
-            balance: 10000.00,
-            equity: 10000.00,
-            margin: 0.00,
-            free_margin: 10000.00,
-            margin_level: 0.00
-        };
-        
-        this.connectionInfo = {
-            is_connected: true,
-            connection_type: 'demo',
-            server: 'Demo Server',
-            account: 12345678
-        };
-        
-        this.updateAccountInfo(this.accountInfo);
-        this.updateMT5Status(this.connectionInfo);
+    async loadAccountSummary() {
+        try {
+            const response = await fetch('/api/account-summary');
+            if (response.ok) {
+                const summary = await response.json();
+                this.updateAccountInfo(summary.account);
+                this.updatePositions(summary.positions);
+                this.updateOrders(summary.orders);
+                this.updateTradingStats(summary.trading);
+            }
+        } catch (error) {
+            console.error('Error loading account summary:', error);
+        }
     }
     
-    initializeDemoPairs() {
-        const demoPairs = [
-            { symbol: 'EURUSD', name: 'Euro vs US Dollar', category: 'major', digits: 5, min_lot: 0.01, spread: 1.5 },
-            { symbol: 'GBPUSD', name: 'British Pound vs US Dollar', category: 'major', digits: 5, min_lot: 0.01, spread: 2.0 },
-            { symbol: 'USDJPY', name: 'US Dollar vs Japanese Yen', category: 'major', digits: 3, min_lot: 0.01, spread: 1.8 },
-            { symbol: 'USDCHF', name: 'US Dollar vs Swiss Franc', category: 'major', digits: 5, min_lot: 0.01, spread: 2.2 },
-            { symbol: 'AUDUSD', name: 'Australian Dollar vs US Dollar', category: 'major', digits: 5, min_lot: 0.01, spread: 2.5 },
-            { symbol: 'USDCAD', name: 'US Dollar vs Canadian Dollar', category: 'major', digits: 5, min_lot: 0.01, spread: 2.8 },
-            { symbol: 'NZDUSD', name: 'New Zealand Dollar vs US Dollar', category: 'major', digits: 5, min_lot: 0.01, spread: 3.0 },
-            { symbol: 'EURGBP', name: 'Euro vs British Pound', category: 'minor', digits: 5, min_lot: 0.01, spread: 2.5 },
-            { symbol: 'EURJPY', name: 'Euro vs Japanese Yen', category: 'minor', digits: 3, min_lot: 0.01, spread: 2.8 },
-            { symbol: 'GBPJPY', name: 'British Pound vs Japanese Yen', category: 'minor', digits: 3, min_lot: 0.01, spread: 3.5 },
-            { symbol: 'XAUUSD', name: 'Gold vs US Dollar', category: 'commodities', digits: 2, min_lot: 0.01, spread: 3.0 },
-            { symbol: 'XAGUSD', name: 'Silver vs US Dollar', category: 'commodities', digits: 3, min_lot: 0.01, spread: 5.0 },
-            { symbol: 'BTCUSD', name: 'Bitcoin vs US Dollar', category: 'crypto', digits: 2, min_lot: 0.01, spread: 50.0 },
-            { symbol: 'ETHUSD', name: 'Ethereum vs US Dollar', category: 'crypto', digits: 2, min_lot: 0.01, spread: 5.0 }
-        ];
+    async refreshData() {
+        if (!this.isRunning) return;
         
-        this.updateAvailablePairs(demoPairs);
+        try {
+            // Refresh tick data for current symbol
+            const tickResponse = await fetch(`/api/tick?symbol=${this.currentSymbol}`);
+            if (tickResponse.ok) {
+                const tick = await tickResponse.json();
+                this.updateTickData(tick);
+            }
+            
+            // Refresh account info
+            const connectionResponse = await fetch('/api/connection');
+            if (connectionResponse.ok) {
+                const connection = await connectionResponse.json();
+                this.updateMT5Status(connection);
+            }
+            
+        } catch (error) {
+            console.debug('Error refreshing data:', error);
+        }
+    }
+    
+    showConnectionError() {
+        // Show MT5 connection error
+        const statusContent = document.getElementById('mt5-status-content');
+        if (statusContent) {
+            statusContent.innerHTML = `
+                <div class="text-center py-8">
+                    <i data-lucide="alert-triangle" class="w-16 h-16 text-red-500 mx-auto mb-4"></i>
+                    <h3 class="text-white font-medium mb-2">MT5 Connection Required</h3>
+                    <p class="text-gray-400 mb-4">Please ensure MetaTrader 5 Terminal is running and you are logged into your account.</p>
+                    <div class="space-y-2 text-sm text-gray-400 mb-4">
+                        <p>✓ Start MetaTrader 5 Terminal</p>
+                        <p>✓ Log into your trading account</p>
+                        <p>✓ Enable 'Allow automated trading' in settings</p>
+                    </div>
+                    <button onclick="dashboard.refreshConnection()" class="px-4 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors">
+                        Try Connect
+                    </button>
+                </div>
+            `;
+        }
+        
+        // Update connection status
+        this.updateConnectionStatus(false, 'disconnected');
+        
+        lucide.createIcons();
     }
     
     updateAvailablePairs(pairs) {
@@ -347,6 +385,8 @@ class SuperTrendDashboard {
         
         // Populate selector
         this.populatePairSelector();
+        
+        console.log(`📈 Loaded ${pairs.length} trading pairs from MT5`);
     }
     
     populatePairSelector() {
@@ -354,6 +394,15 @@ class SuperTrendDashboard {
         if (!selector) return;
         
         selector.innerHTML = '';
+        
+        if (this.filteredPairs.length === 0) {
+            const option = document.createElement('option');
+            option.value = '';
+            option.textContent = 'No pairs available - Check MT5 connection';
+            option.disabled = true;
+            selector.appendChild(option);
+            return;
+        }
         
         this.filteredPairs.forEach(pair => {
             const option = document.createElement('option');
@@ -458,7 +507,7 @@ class SuperTrendDashboard {
             }
         }
         
-        // Calculate balance change percentage (mock for demo)
+        // Calculate balance change percentage
         const balanceChange = ((equity - balance) / balance * 100);
         const changeElement = document.getElementById('balance-change');
         if (changeElement) {
@@ -472,29 +521,65 @@ class SuperTrendDashboard {
         this.connectionInfo = { ...this.connectionInfo, ...connection };
         
         const isConnected = connection.is_connected;
-        const connectionType = connection.connection_type || 'demo';
+        const connectionType = connection.connection_type || 'disconnected';
         
         // Update connection indicator
         this.updateConnectionStatus(isConnected, connectionType);
         
         // Update connection details
-        document.getElementById('mt5-server').textContent = connection.server || 'Demo Server';
-        document.getElementById('mt5-account').textContent = connection.account || '12345678';
+        document.getElementById('mt5-server').textContent = connection.server || 'Not Connected';
+        document.getElementById('mt5-account').textContent = connection.account || 'N/A';
         document.getElementById('mt5-connection-status').textContent = 
-            isConnected ? (connectionType === 'demo' ? 'Demo Mode' : 'Connected') : 'Disconnected';
+            isConnected ? 'Connected' : 'Disconnected';
         
         // Update connection type badge
         const badge = document.getElementById('connection-type-badge');
         if (badge) {
-            badge.className = `px-2 py-1 rounded-full text-xs font-medium connection-${connectionType}`;
-            badge.textContent = connectionType === 'websocket' ? 'WebSocket Live' :
-                              connectionType === 'file' ? 'File-based Live' : 'Demo Mode';
+            if (isConnected) {
+                badge.className = 'px-2 py-1 rounded-full text-xs font-medium bg-emerald-500 text-white';
+                badge.textContent = 'MT5 Live';
+            } else {
+                badge.className = 'px-2 py-1 rounded-full text-xs font-medium bg-red-500 text-white';
+                badge.textContent = 'Disconnected';
+            }
         }
         
         // Update last update time
         if (connection.last_update) {
             const updateTime = new Date(connection.last_update).toLocaleTimeString();
             document.getElementById('mt5-last-update').textContent = updateTime;
+        }
+    }
+    
+    updatePositions(positions) {
+        document.getElementById('open-positions').textContent = positions.length;
+        
+        // Calculate total P&L
+        const totalPnL = positions.reduce((sum, pos) => sum + (pos.profit || 0), 0);
+        const pnlElement = document.getElementById('daily-pnl');
+        if (pnlElement) {
+            const sign = totalPnL >= 0 ? '+' : '';
+            pnlElement.textContent = `${sign}$${totalPnL.toFixed(2)}`;
+            pnlElement.className = totalPnL >= 0 ? 'text-lg font-bold text-emerald-400' : 'text-lg font-bold text-red-400';
+        }
+    }
+    
+    updateOrders(orders) {
+        document.getElementById('pending-orders').textContent = orders.length;
+    }
+    
+    updateTradingStats(trading) {
+        if (trading.open_positions !== undefined) {
+            document.getElementById('open-positions').textContent = trading.open_positions;
+        }
+        if (trading.pending_orders !== undefined) {
+            document.getElementById('pending-orders').textContent = trading.pending_orders;
+        }
+        if (trading.daily_pnl !== undefined) {
+            const pnlElement = document.getElementById('daily-pnl');
+            const sign = trading.daily_pnl >= 0 ? '+' : '';
+            pnlElement.textContent = `${sign}$${trading.daily_pnl.toFixed(2)}`;
+            pnlElement.className = trading.daily_pnl >= 0 ? 'text-lg font-bold text-emerald-400' : 'text-lg font-bold text-red-400';
         }
     }
     
@@ -570,26 +655,25 @@ class SuperTrendDashboard {
         document.getElementById('data-points').textContent = data.length || 0;
     }
     
-    updateConnectionStatus(isConnected, type = 'demo') {
+    updateConnectionStatus(isConnected, type = 'disconnected') {
         const statusElement = document.getElementById('connection-status');
         const modeIndicator = document.getElementById('mode-indicator');
         
-        if (isConnected) {
+        if (isConnected && type === 'direct') {
             statusElement.className = 'flex items-center px-3 py-1 rounded-full text-sm bg-emerald-500/20 text-emerald-400';
-            statusElement.innerHTML = '<i data-lucide="wifi" class="w-4 h-4 mr-2"></i><span>Connected</span>';
+            statusElement.innerHTML = '<i data-lucide="wifi" class="w-4 h-4 mr-2"></i><span>MT5 Connected</span>';
             
             if (modeIndicator) {
-                modeIndicator.textContent = type === 'websocket' ? 'WebSocket' : 
-                                          type === 'file' ? 'File-based' : 'Demo';
-                modeIndicator.className = type === 'demo' ? 'text-yellow-400' : 'text-emerald-400';
+                modeIndicator.textContent = 'MT5 Live';
+                modeIndicator.className = 'text-emerald-400';
             }
         } else {
             statusElement.className = 'flex items-center px-3 py-1 rounded-full text-sm bg-red-500/20 text-red-400';
-            statusElement.innerHTML = '<i data-lucide="wifi-off" class="w-4 h-4 mr-2"></i><span>Disconnected</span>';
+            statusElement.innerHTML = '<i data-lucide="wifi-off" class="w-4 h-4 mr-2"></i><span>MT5 Disconnected</span>';
             
             if (modeIndicator) {
-                modeIndicator.textContent = 'Demo';
-                modeIndicator.className = 'text-yellow-400';
+                modeIndicator.textContent = 'Disconnected';
+                modeIndicator.className = 'text-red-400';
             }
         }
         
@@ -726,7 +810,8 @@ class SuperTrendDashboard {
         // Reset chart data
         this.resetData();
         
-        // TODO: Send symbol change to backend
+        // Refresh tick data for new symbol
+        this.refreshData();
     }
     
     async refreshConnection() {
@@ -741,7 +826,7 @@ class SuperTrendDashboard {
             const result = await response.json();
             
             if (result.status === 'success') {
-                console.log('✅ Connection refreshed');
+                console.log('✅ MT5 connection refreshed');
                 // Reload data
                 await this.loadInitialData();
             }
@@ -771,19 +856,6 @@ class SuperTrendDashboard {
             }
         } catch (error) {
             console.error('Error updating config:', error);
-        }
-    }
-    
-    async reconnectMT5() {
-        try {
-            const response = await fetch('/api/reconnect', { method: 'POST' });
-            const result = await response.json();
-            
-            if (result.status === 'success') {
-                console.log('✅ Reconnection attempted');
-            }
-        } catch (error) {
-            console.error('Error reconnecting:', error);
         }
     }
     
