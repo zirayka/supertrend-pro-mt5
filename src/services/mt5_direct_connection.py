@@ -40,26 +40,88 @@ class MT5DirectConnection:
         self.symbols_loading = False
         
     async def initialize(self) -> bool:
-        """Initialize connection to MT5 Terminal with enhanced symbol loading"""
+        """Initialize connection to MT5 Terminal with enhanced error handling"""
         try:
             logger.info("🔌 Initializing MT5 direct connection...")
             
+            # Check if MT5 package is available
+            try:
+                import MetaTrader5 as mt5
+                logger.info("✅ MetaTrader5 package imported successfully")
+            except ImportError as e:
+                logger.error(f"❌ MetaTrader5 package not available: {e}")
+                logger.error("💡 Please install MetaTrader5 package: pip install MetaTrader5")
+                return False
+            
             # Initialize MT5 connection
-            if not mt5.initialize():
+            logger.info("🔄 Attempting to initialize MT5...")
+            init_result = mt5.initialize()
+            logger.info(f"📊 MT5 initialize() returned: {init_result}")
+            
+            if not init_result:
                 error_code = mt5.last_error()
                 logger.error(f"❌ MT5 initialization failed, error code: {error_code}")
-                logger.error("💡 Please ensure:")
-                logger.error("   1. MetaTrader 5 Terminal is running")
-                logger.error("   2. You are logged into a trading account")
-                logger.error("   3. 'Allow automated trading' is enabled in Tools → Options → Expert Advisors")
+                
+                # Provide specific error guidance
+                if error_code == (1, 'Terminal: no connection'):
+                    logger.error("💡 MT5 Terminal is not running or not connected to internet")
+                    logger.error("   1. Start MetaTrader 5 Terminal")
+                    logger.error("   2. Ensure internet connection is available")
+                    logger.error("   3. Wait for terminal to connect to broker server")
+                elif error_code == (1, 'Terminal: authorization failed'):
+                    logger.error("💡 MT5 Terminal authorization failed")
+                    logger.error("   1. Check your login credentials in MT5")
+                    logger.error("   2. Ensure you're logged into a trading account")
+                    logger.error("   3. Check if your account is active")
+                else:
+                    logger.error("💡 General MT5 connection issues:")
+                    logger.error("   1. Ensure MetaTrader 5 Terminal is running")
+                    logger.error("   2. Log into your trading account")
+                    logger.error("   3. Enable 'Allow automated trading' in Tools → Options → Expert Advisors")
+                    logger.error("   4. Check if your broker allows API connections")
+                
+                # Try to get more information about MT5 state
+                try:
+                    terminal_info = mt5.terminal_info()
+                    if terminal_info:
+                        logger.info(f"📊 Terminal info available: {terminal_info}")
+                    else:
+                        logger.error("❌ No terminal info available - MT5 may not be running")
+                except Exception as e:
+                    logger.error(f"❌ Error getting terminal info: {e}")
+                
                 return False
             
             logger.info("✅ MT5 initialized successfully")
             
+            # Get terminal info for debugging
+            try:
+                terminal_info = mt5.terminal_info()
+                if terminal_info:
+                    logger.info(f"📊 Terminal: {terminal_info.name} {terminal_info.build}")
+                    logger.info(f"📊 Company: {terminal_info.company}")
+                    logger.info(f"📊 Path: {terminal_info.path}")
+                    logger.info(f"📊 Connected: {terminal_info.connected}")
+                    logger.info(f"📊 Trade allowed: {terminal_info.trade_allowed}")
+                else:
+                    logger.warning("⚠️ Could not get terminal info")
+            except Exception as e:
+                logger.warning(f"⚠️ Error getting terminal info: {e}")
+            
             # Get account info
+            logger.info("🔄 Getting account information...")
             account_info = mt5.account_info()
             if account_info is None:
-                logger.error("❌ Failed to get MT5 account info - please check if you're logged in")
+                logger.error("❌ Failed to get MT5 account info")
+                logger.error("💡 This usually means:")
+                logger.error("   1. You're not logged into a trading account")
+                logger.error("   2. The account connection is unstable")
+                logger.error("   3. The broker server is not responding")
+                
+                # Try to get last error
+                error_code = mt5.last_error()
+                logger.error(f"❌ Last error: {error_code}")
+                
                 mt5.shutdown()
                 return False
             
@@ -76,13 +138,16 @@ class MT5DirectConnection:
             
             self.is_connected = True
             
-            # Load available symbols immediately and synchronously
-            await self._load_symbols_async()
-            
-            logger.info("✅ MT5 direct connection established successfully")
+            logger.info("✅ Account info retrieved successfully")
             logger.info(f"📊 Account: {self.connection_info['login']} on {self.connection_info['server']}")
             logger.info(f"🏢 Company: {self.connection_info['company']}")
             logger.info(f"💰 Balance: ${self.account_info.get('balance', 0):.2f} {self.connection_info['currency']}")
+            
+            # Load available symbols immediately and synchronously
+            logger.info("🔄 Loading trading symbols...")
+            await self._load_symbols_async()
+            
+            logger.info("✅ MT5 direct connection established successfully")
             logger.info(f"📈 Available symbols: {len(self.available_symbols)}")
             logger.info(f"📋 Currency pairs: {len(self.currency_pairs)}")
             
@@ -90,6 +155,9 @@ class MT5DirectConnection:
             
         except Exception as e:
             logger.error(f"❌ Error initializing MT5 connection: {e}")
+            logger.error(f"❌ Exception type: {type(e)}")
+            import traceback
+            logger.error(f"❌ Traceback: {traceback.format_exc()}")
             return False
     
     async def _load_symbols_async(self):
@@ -118,11 +186,18 @@ class MT5DirectConnection:
         logger.info(f"✅ Async symbol loading complete: {len(self.available_symbols)} symbols, {len(self.currency_pairs)} pairs")
     
     def _load_symbols_sync(self):
-        """Load symbols synchronously"""
+        """Load symbols synchronously with enhanced error handling"""
         logger.info("📊 Starting synchronous symbol loading...")
         
         try:
+            # Check if MT5 is still connected
+            if not mt5.terminal_info():
+                logger.error("❌ MT5 terminal not available during symbol loading")
+                self._create_fallback_symbols()
+                return
+            
             # Method 1: Get all symbols directly
+            logger.info("🔄 Attempting to get symbols using symbols_get()...")
             symbols = mt5.symbols_get()
             if symbols and len(symbols) > 0:
                 logger.info(f"✅ Found {len(symbols)} symbols using symbols_get()")
@@ -130,19 +205,28 @@ class MT5DirectConnection:
                 if len(self.currency_pairs) > 0:
                     logger.info(f"✅ Successfully processed {len(self.currency_pairs)} currency pairs")
                     return
+            else:
+                logger.warning("⚠️ symbols_get() returned no symbols")
             
             # Method 2: Get symbols total and iterate
+            logger.info("🔄 Attempting to get symbols by iteration...")
             symbols_total = mt5.symbols_total()
             logger.info(f"📊 Total symbols in MT5: {symbols_total}")
             
             if symbols_total > 0:
                 loaded_symbols = []
-                for i in range(min(symbols_total, 500)):  # Load first 500 symbols
-                    symbol_name = mt5.symbol_name(i)
-                    if symbol_name:
-                        symbol_info = mt5.symbol_info(symbol_name)
-                        if symbol_info:
-                            loaded_symbols.append(symbol_info)
+                for i in range(min(symbols_total, 100)):  # Load first 100 symbols for testing
+                    try:
+                        symbol_name = mt5.symbol_name(i)
+                        if symbol_name:
+                            symbol_info = mt5.symbol_info(symbol_name)
+                            if symbol_info:
+                                loaded_symbols.append(symbol_info)
+                                if len(loaded_symbols) % 20 == 0:
+                                    logger.info(f"📊 Loaded {len(loaded_symbols)} symbols so far...")
+                    except Exception as e:
+                        logger.debug(f"Error loading symbol {i}: {e}")
+                        continue
                 
                 if loaded_symbols:
                     logger.info(f"✅ Found {len(loaded_symbols)} symbols by iteration")
@@ -150,6 +234,10 @@ class MT5DirectConnection:
                     if len(self.currency_pairs) > 0:
                         logger.info(f"✅ Successfully processed {len(self.currency_pairs)} currency pairs")
                         return
+                else:
+                    logger.warning("⚠️ Symbol iteration returned no symbols")
+            else:
+                logger.warning("⚠️ symbols_total() returned 0")
             
             # Method 3: Try common symbols
             logger.info("🔄 Trying common symbols...")
@@ -159,11 +247,14 @@ class MT5DirectConnection:
                 return
             
             # Method 4: Create fallback symbols
-            logger.warning("⚠️ Creating fallback symbols...")
+            logger.warning("⚠️ All symbol loading methods failed, creating fallback symbols...")
             self._create_fallback_symbols()
             
         except Exception as e:
             logger.error(f"❌ Error loading symbols: {e}")
+            logger.error(f"❌ Exception type: {type(e)}")
+            import traceback
+            logger.error(f"❌ Traceback: {traceback.format_exc()}")
             self._create_fallback_symbols()
     
     def _process_symbols_sync(self, symbols):
@@ -192,9 +283,9 @@ class MT5DirectConnection:
                         continue
                     symbol = symbol_info
                 
-                # Skip symbols that are not visible
-                if not getattr(symbol, 'visible', True):
-                    continue
+                # Skip symbols that are not visible (optional - comment out to include all)
+                # if not getattr(symbol, 'visible', True):
+                #     continue
                 
                 # Try to select symbol to make it available
                 try:
@@ -285,6 +376,8 @@ class MT5DirectConnection:
     
     def _load_common_symbols_sync(self):
         """Load common trading symbols synchronously"""
+        logger.info("🔄 Loading common trading symbols...")
+        
         common_symbols = [
             'EURUSD', 'GBPUSD', 'USDJPY', 'USDCHF', 'AUDUSD', 'USDCAD', 'NZDUSD',
             'EURGBP', 'EURJPY', 'GBPJPY', 'EURCHF', 'EURAUD', 'EURCAD',
@@ -295,6 +388,8 @@ class MT5DirectConnection:
         
         self.available_symbols = []
         self.currency_pairs = []
+        
+        successful_symbols = 0
         
         for symbol_name in common_symbols:
             try:
@@ -345,14 +440,17 @@ class MT5DirectConnection:
                             swap_short=float(symbol_data['swap_short']) if symbol_data['swap_short'] is not None else 0.5
                         )
                         self.currency_pairs.append(pair)
+                        successful_symbols += 1
                         logger.info(f"✅ Added common symbol: {symbol_name}")
                     except Exception as e:
                         logger.debug(f"Error creating pair for {symbol_name}: {e}")
+                else:
+                    logger.debug(f"Symbol info not available for {symbol_name}")
             except Exception as e:
                 logger.debug(f"Could not load symbol {symbol_name}: {e}")
                 continue
         
-        logger.info(f"✅ Loaded {len(self.available_symbols)} common symbols")
+        logger.info(f"✅ Loaded {successful_symbols} common symbols out of {len(common_symbols)} attempted")
     
     def _create_fallback_symbols(self):
         """Create fallback symbols when MT5 symbols cannot be loaded"""
@@ -817,6 +915,10 @@ class MT5DirectConnection:
                 pass
         
         # Shutdown MT5 connection
-        mt5.shutdown()
+        try:
+            mt5.shutdown()
+            logger.info("✅ MT5 connection shutdown successfully")
+        except Exception as e:
+            logger.error(f"❌ Error shutting down MT5: {e}")
         
         logger.info("✅ MT5 direct connection cleaned up")
