@@ -1,7 +1,6 @@
-#!/usr/bin/env python3
 """
 SuperTrend Pro MT5 - Python Trading Dashboard
-Direct MT5 connection only - Enhanced startup
+Direct MT5 connection only - Enhanced startup with proper health check
 """
 
 import asyncio
@@ -95,20 +94,38 @@ async def websocket_endpoint(websocket: WebSocket):
     except WebSocketDisconnect:
         websocket_manager.disconnect(websocket)
 
-# Health check endpoint
+# Enhanced health check endpoint
 @app.get("/health")
 async def health_check():
-    """Health check endpoint"""
-    connection_status = await mt5_manager.get_connection_status()
-    pairs_count = len(await mt5_manager.get_available_pairs())
-    
-    return {
-        "status": "healthy",
-        "mt5_connected": connection_status.is_connected,
-        "pairs_available": pairs_count,
-        "websocket_connections": websocket_manager.get_connection_count(),
-        "timestamp": "2024-01-01T00:00:00Z"
-    }
+    """Health check endpoint with accurate symbol count"""
+    try:
+        connection_status = await mt5_manager.get_connection_status()
+        pairs = await mt5_manager.get_available_pairs()
+        
+        # Get symbol count from direct connection if available
+        symbol_count = len(pairs)
+        if hasattr(mt5_manager, 'direct_connection') and mt5_manager.direct_connection:
+            symbol_count = mt5_manager.direct_connection.get_symbols_count()
+        
+        return {
+            "status": "healthy",
+            "mt5_connected": connection_status.is_connected,
+            "pairs_available": symbol_count,
+            "pairs_loaded": len(pairs),
+            "websocket_connections": websocket_manager.get_connection_count(),
+            "timestamp": "2024-01-01T00:00:00Z"
+        }
+    except Exception as e:
+        logger.error(f"Error in health check: {e}")
+        return {
+            "status": "error",
+            "mt5_connected": False,
+            "pairs_available": 0,
+            "pairs_loaded": 0,
+            "websocket_connections": 0,
+            "error": str(e),
+            "timestamp": "2024-01-01T00:00:00Z"
+        }
 
 if __name__ == "__main__":
     uvicorn.run(
