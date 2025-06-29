@@ -208,12 +208,17 @@ class MT5ConnectionManager:
     
     async def get_available_pairs(self) -> List[CurrencyPair]:
         """Get available currency pairs with fallback"""
+        logger.info("📊 MT5ConnectionManager: Getting available pairs...")
+        
         if self.connection_status.connection_type == "direct" and self.direct_connection:
             try:
                 pairs = await self.direct_connection.get_available_pairs()
                 if pairs:
                     self.available_pairs = pairs  # Cache the pairs
+                    logger.info(f"✅ Retrieved {len(pairs)} pairs from direct connection")
                     return pairs
+                else:
+                    logger.warning("⚠️ Direct connection returned empty pairs list")
             except Exception as e:
                 logger.error(f"❌ Error getting pairs from direct connection: {e}")
         
@@ -279,9 +284,10 @@ class MT5ConnectionManager:
     
     async def force_reload_pairs(self):
         """Force reload trading pairs from MT5"""
+        logger.info("🔄 Force reloading trading pairs...")
+        
         if self.connection_status.connection_type == "direct" and self.direct_connection:
             try:
-                logger.info("🔄 Force reloading trading pairs...")
                 # Reinitialize symbols in direct connection
                 await self.direct_connection._load_symbols()
                 pairs = await self.direct_connection.get_available_pairs()
@@ -290,8 +296,16 @@ class MT5ConnectionManager:
                     await self._notify_subscribers("symbols", pairs)
                     logger.info(f"✅ Force reloaded {len(pairs)} trading pairs")
                     return pairs
+                else:
+                    logger.warning("⚠️ Force reload returned empty pairs list")
             except Exception as e:
                 logger.error(f"❌ Error force reloading pairs: {e}")
+        
+        # If force reload fails, return cached pairs
+        if self.available_pairs:
+            logger.info(f"📊 Returning {len(self.available_pairs)} cached pairs after failed reload")
+            return self.available_pairs
+        
         return []
     
     async def cleanup(self):
