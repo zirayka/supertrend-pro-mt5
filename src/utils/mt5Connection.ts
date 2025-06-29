@@ -10,7 +10,7 @@ export class MT5ConnectionManager {
   private isWebContainer = false;
   private connectionMode: 'websocket' | 'file' | 'demo' = 'demo';
   private connectionAttempts = 0;
-  private maxConnectionAttempts = 3;
+  private maxConnectionAttempts = 1; // Reduced to 1 for faster fallback
 
   constructor(private serverUrl?: string) {
     // Detect if running in WebContainer environment
@@ -30,17 +30,21 @@ export class MT5ConnectionManager {
   private async initializeConnections() {
     console.log('🔍 Initializing MT5 connections...');
     
-    // Try WebSocket connection first (but don't wait too long)
+    // Try file-based connection first (more reliable for your setup)
+    const fileConnected = await this.tryFileConnection();
+    
+    if (fileConnected) {
+      console.log('✅ Using file-based connection to MT5');
+      return;
+    }
+    
+    // Only try WebSocket if file connection fails
+    console.log('📁 File connection failed, trying WebSocket...');
     const wsConnected = await this.tryWebSocketConnection();
     
-    // If WebSocket fails, try file-based connection
     if (!wsConnected) {
-      const fileConnected = await this.tryFileConnection();
-      
-      if (!fileConnected) {
-        console.log('⚠️ No MT5 connection available, staying in demo mode');
-        this.connectionMode = 'demo';
-      }
+      console.log('⚠️ No MT5 connection available, staying in demo mode');
+      this.connectionMode = 'demo';
     }
   }
 
@@ -54,10 +58,10 @@ export class MT5ConnectionManager {
       // Set up event forwarding
       this.setupTerminalConnectionEvents();
       
-      // Test connection with shorter timeout for faster fallback
+      // Test connection with very short timeout for faster fallback
       const connected = await Promise.race([
         this.terminalConnection.testConnection(),
-        new Promise<boolean>(resolve => setTimeout(() => resolve(false), 3000)) // 3 second timeout
+        new Promise<boolean>(resolve => setTimeout(() => resolve(false), 1000)) // 1 second timeout
       ]);
       
       if (connected) {
@@ -65,7 +69,7 @@ export class MT5ConnectionManager {
         this.connectionMode = 'websocket';
         return true;
       } else {
-        console.log('❌ WebSocket connection to MT5 Terminal failed');
+        console.log('❌ WebSocket connection to MT5 Terminal failed - no server running');
         if (this.terminalConnection) {
           this.terminalConnection.disconnect();
           this.terminalConnection = null;
