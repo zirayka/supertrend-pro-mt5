@@ -1,4 +1,4 @@
-"""API routes for the application with direct MT5 integration only - Fixed SuperTrend calculation endpoint"""
+"""API routes for the application with direct MT5 integration only - Fixed calculator initialization"""
 
 import logging
 from datetime import datetime
@@ -49,8 +49,10 @@ def get_mt5_manager():
     return _mt5_manager
 
 def get_calculator():
-    """Get SuperTrend calculator instance"""
+    """Get SuperTrend calculator instance with proper initialization"""
+    global _calculator
     if _calculator is None:
+        logger.info("🔄 Creating new calculator instance...")
         from src.services.supertrend_calculator import SuperTrendCalculator
         from src.core.models import SuperTrendConfig
         _calculator = SuperTrendCalculator(SuperTrendConfig())
@@ -66,7 +68,8 @@ async def get_status():
         "version": "2.0.0",
         "connection_mode": "MT5 Direct Only",
         "mt5_package": "MetaTrader5 5.0.45",
-        "mt5_manager_available": _mt5_manager is not None
+        "mt5_manager_available": _mt5_manager is not None,
+        "calculator_available": _calculator is not None
     }
 
 @api_router.get("/connection", response_model=MT5Connection)
@@ -364,52 +367,96 @@ async def update_config(config: SuperTrendConfig):
 @api_router.get("/config", response_model=SuperTrendConfig)
 async def get_config():
     """Get current SuperTrend configuration"""
-    calc = get_calculator()
-    return calc.config
+    try:
+        calc = get_calculator()
+        return calc.config
+    except Exception as e:
+        logger.error(f"Error getting config: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @api_router.post("/calculate")
 async def calculate_supertrend(request: SuperTrendRequest):
-    """Calculate SuperTrend for given symbol using MT5 data - Fixed to accept JSON body"""
+    """Calculate SuperTrend for given symbol using MT5 data - Fixed calculator initialization"""
     try:
         logger.info(f"📊 Calculating SuperTrend for {request.symbol} on {request.timeframe}")
         
-        calc = get_calculator()
-        mt5 = get_mt5_manager()
+        # Get calculator with proper error handling
+        try:
+            calc = get_calculator()
+        except Exception as calc_error:
+            logger.error(f"❌ Error getting calculator: {calc_error}")
+            raise HTTPException(status_code=500, detail="Calculator not available")
+        
+        # Get MT5 manager
+        try:
+            mt5 = get_mt5_manager()
+        except Exception as mt5_error:
+            logger.error(f"❌ Error getting MT5 manager: {mt5_error}")
+            raise HTTPException(status_code=500, detail="MT5 connection not available")
         
         # Update calculator config if custom parameters provided
         if request.periods or request.multiplier:
-            current_config = calc.config
-            if request.periods:
-                current_config.periods = request.periods
-            if request.multiplier:
-                current_config.multiplier = request.multiplier
-            calc.update_config(current_config)
+            try:
+                current_config = calc.config
+                if request.periods:
+                    current_config.periods = request.periods
+                if request.multiplier:
+                    current_config.multiplier = request.multiplier
+                calc.update_config(current_config)
+                logger.info(f"📊 Updated config: periods={current_config.periods}, multiplier={current_config.multiplier}")
+            except Exception as config_error:
+                logger.error(f"❌ Error updating config: {config_error}")
+                # Continue with default config
         
         # Set symbol and add market data
-        calc.set_symbol(request.symbol)
+        try:
+            calc.set_symbol(request.symbol)
+        except Exception as symbol_error:
+            logger.error(f"❌ Error setting symbol: {symbol_error}")
+            raise HTTPException(status_code=500, detail="Failed to set symbol")
         
         # Get market data for the symbol from MT5
-        market_data = await mt5.get_market_data(request.symbol, request.timeframe, 100)
+        try:
+            market_data = await mt5.get_market_data(request.symbol, request.timeframe, 100)
+        except Exception as data_error:
+            logger.error(f"❌ Error getting market data: {data_error}")
+            raise HTTPException(status_code=500, detail="Failed to get market data")
         
         if not market_data:
             logger.warning(f"No market data available for {request.symbol} on {request.timeframe}")
             return {
                 "status": "no_data",
-                "message": f"No market data available for {request.symbol} on {request.timeframe} timeframe"
+                "message": f"No market data available for {request.symbol} on {request.timeframe} timeframe",
+                "symbol": request.symbol,
+                "timeframe": request.timeframe,
+                "timestamp": datetime.now().isoformat()
             }
         
         # Add data to calculator
-        for data_point in market_data:
-            calc.add_data(data_point)
+        try:
+            for data_point in market_data:
+                calc.add_data(data_point)
+        except Exception as add_error:
+            logger.error(f"❌ Error adding data to calculator: {add_error}")
+            raise HTTPException(status_code=500, detail="Failed to process market data")
         
         # Calculate SuperTrend
-        result = calc.calculate()
+        try:
+            result = calc.calculate()
+        except Exception as calc_error:
+            logger.error(f"❌ Error calculating SuperTrend: {calc_error}")
+            raise HTTPException(status_code=500, detail="SuperTrend calculation failed")
         
         if result is None:
             logger.warning(f"Insufficient data for SuperTrend calculation on {request.symbol}")
             return {
                 "status": "insufficient_data", 
-                "message": f"Not enough data for SuperTrend calculation. Need at least {calc.config.periods + 1} candles."
+                "message": f"Not enough data for SuperTrend calculation. Need at least {calc.config.periods + 1} candles.",
+                "symbol": request.symbol,
+                "timeframe": request.timeframe,
+                "data_points": len(market_data),
+                "required_points": calc.config.periods + 1,
+                "timestamp": datetime.now().isoformat()
             }
         
         logger.info(f"✅ SuperTrend calculated successfully for {request.symbol}")
@@ -420,14 +467,21 @@ async def calculate_supertrend(request: SuperTrendRequest):
             "symbol": request.symbol,
             "timeframe": request.timeframe,
             "data_points": len(market_data),
+            "config": {
+                "periods": calc.config.periods,
+                "multiplier": calc.config.multiplier
+            },
             "timestamp": datetime.now().isoformat()
         }
         
+    except HTTPException:
+        # Re-raise HTTP exceptions as-is
+        raise
     except Exception as e:
-        logger.error(f"❌ Error calculating SuperTrend: {e}")
+        logger.error(f"❌ Unexpected error calculating SuperTrend: {e}")
         import traceback
         logger.error(f"❌ Traceback: {traceback.format_exc()}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
 
 @api_router.post("/test-connection")
 async def test_connection():
@@ -501,6 +555,19 @@ async def test_connection():
                     "success": True,
                     "message": f"Pending orders: {len(orders)}"
                 }
+                
+                # Test calculator
+                try:
+                    calc = get_calculator()
+                    test_results["calculator"] = {
+                        "success": True,
+                        "message": f"Calculator available with config: periods={calc.config.periods}, multiplier={calc.config.multiplier}"
+                    }
+                except Exception as calc_error:
+                    test_results["calculator"] = {
+                        "success": False,
+                        "message": f"Calculator error: {str(calc_error)}"
+                    }
                 
             except Exception as e:
                 test_results["detailed_tests"] = {
