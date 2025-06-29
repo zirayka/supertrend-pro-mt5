@@ -1,6 +1,6 @@
 """
 MT5 connection management service - Direct MT5 connection only
-Enhanced version with better pair loading and connection stability
+Enhanced version with better pair loading and connection stability - Reduced monitoring delay
 """
 
 import asyncio
@@ -18,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 
 class MT5ConnectionManager:
-    """MT5 connection manager - Direct MT5 connection only"""
+    """MT5 connection manager - Direct MT5 connection only with optimized performance"""
     
     def __init__(self):
         self.connection_status = MT5Connection(is_connected=False)
@@ -38,8 +38,12 @@ class MT5ConnectionManager:
         # Connection stability tracking
         self.connection_attempts = 0
         self.max_connection_attempts = 3
-        self.connection_retry_delay = 5  # seconds
+        self.connection_retry_delay = 3  # Reduced from 5 to 3 seconds
         self.last_successful_connection = None
+        
+        # Performance optimization
+        self.monitoring_interval = 1.0  # Reduced from 3 to 1 second for faster updates
+        self.tick_update_interval = 0.5  # Ultra-fast tick updates
         
     async def initialize(self):
         """Initialize MT5 direct connection with enhanced retry logic"""
@@ -87,7 +91,7 @@ class MT5ConnectionManager:
                 # Load initial data
                 await self._load_direct_connection_data()
                 
-                # Start monitoring
+                # Start optimized monitoring
                 await self.direct_connection.start_monitoring()
                 
                 logger.info("✅ Direct MT5 connection established successfully")
@@ -118,7 +122,7 @@ class MT5ConnectionManager:
             else:
                 logger.warning("⚠️ No trading pairs loaded from MT5")
                 # Try to reload pairs after a short delay
-                await asyncio.sleep(2)
+                await asyncio.sleep(1)  # Reduced delay
                 pairs = await self.direct_connection.get_available_pairs()
                 if pairs:
                     self.available_pairs = pairs
@@ -149,7 +153,7 @@ class MT5ConnectionManager:
             logger.error(f"❌ Error loading direct connection data: {e}")
     
     async def _handle_direct_connection_event(self, event_type: str, data):
-        """Handle events from direct MT5 connection"""
+        """Handle events from direct MT5 connection with optimized processing"""
         try:
             if event_type == 'tick':
                 tick_data = data
@@ -189,12 +193,24 @@ class MT5ConnectionManager:
             self.subscribers.remove(callback)
     
     async def _notify_subscribers(self, event_type: str, data: dict):
-        """Notify all subscribers of events"""
+        """Notify all subscribers of events with optimized async processing"""
+        if not self.subscribers:
+            return
+            
+        # Process notifications concurrently for better performance
+        tasks = []
         for callback in self.subscribers:
             try:
-                await callback(event_type, data)
+                task = asyncio.create_task(callback(event_type, data))
+                tasks.append(task)
             except Exception as e:
-                logger.error(f"❌ Error notifying subscriber: {e}")
+                logger.error(f"❌ Error creating notification task: {e}")
+        
+        if tasks:
+            try:
+                await asyncio.gather(*tasks, return_exceptions=True)
+            except Exception as e:
+                logger.error(f"❌ Error in notification gathering: {e}")
     
     async def get_connection_status(self) -> MT5Connection:
         """Get current connection status"""
@@ -208,14 +224,14 @@ class MT5ConnectionManager:
     
     async def get_available_pairs(self) -> List[CurrencyPair]:
         """Get available currency pairs with fallback"""
-        logger.info("📊 MT5ConnectionManager: Getting available pairs...")
+        logger.debug("📊 MT5ConnectionManager: Getting available pairs...")
         
         if self.connection_status.connection_type == "direct" and self.direct_connection:
             try:
                 pairs = await self.direct_connection.get_available_pairs()
                 if pairs:
                     self.available_pairs = pairs  # Cache the pairs
-                    logger.info(f"✅ Retrieved {len(pairs)} pairs from direct connection")
+                    logger.debug(f"✅ Retrieved {len(pairs)} pairs from direct connection")
                     return pairs
                 else:
                     logger.warning("⚠️ Direct connection returned empty pairs list")
@@ -224,7 +240,7 @@ class MT5ConnectionManager:
         
         # Return cached pairs if available
         if self.available_pairs:
-            logger.info(f"📊 Returning {len(self.available_pairs)} cached pairs")
+            logger.debug(f"📊 Returning {len(self.available_pairs)} cached pairs")
             return self.available_pairs
         
         # Return empty list if no pairs available
@@ -232,25 +248,31 @@ class MT5ConnectionManager:
         return []
     
     async def get_current_tick(self, symbol: str = "EURUSD") -> Optional[MT5Tick]:
-        """Get current tick data"""
+        """Get current tick data with caching"""
         if self.connection_status.connection_type == "direct" and self.direct_connection:
             try:
-                return await self.direct_connection.get_current_tick(symbol)
+                tick = await self.direct_connection.get_current_tick(symbol)
+                if tick:
+                    self.current_tick = tick  # Cache the tick
+                return tick
             except Exception as e:
                 logger.error(f"❌ Error getting tick data: {e}")
         return self.current_tick
     
     async def get_market_data(self, symbol: str = "EURUSD", timeframe: str = "M15", count: int = 100) -> List[MarketData]:
-        """Get market data"""
+        """Get market data with caching"""
         if self.connection_status.connection_type == "direct" and self.direct_connection:
             try:
-                return await self.direct_connection.get_market_data(symbol, timeframe, count)
+                data = await self.direct_connection.get_market_data(symbol, timeframe, count)
+                if data:
+                    self.market_data = data  # Cache the data
+                return data
             except Exception as e:
                 logger.error(f"❌ Error getting market data: {e}")
         return self.market_data
     
     async def get_positions(self) -> List[Dict]:
-        """Get open positions"""
+        """Get open positions with caching"""
         if self.connection_status.connection_type == "direct" and self.direct_connection:
             try:
                 positions = await self.direct_connection.get_positions()
@@ -261,7 +283,7 @@ class MT5ConnectionManager:
         return self.positions
     
     async def get_orders(self) -> List[Dict]:
-        """Get pending orders"""
+        """Get pending orders with caching"""
         if self.connection_status.connection_type == "direct" and self.direct_connection:
             try:
                 orders = await self.direct_connection.get_orders()

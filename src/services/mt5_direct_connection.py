@@ -1,6 +1,6 @@
 """
 Enhanced MT5 direct connection using MetaTrader5 Python package
-Fixed version with robust symbol loading and proper API synchronization
+Fixed version with robust symbol loading and optimized monitoring for minimal delay
 """
 
 import asyncio
@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 
 class MT5DirectConnection:
-    """Enhanced direct connection to MT5 Terminal with robust symbol loading"""
+    """Enhanced direct connection to MT5 Terminal with optimized monitoring for minimal delay"""
     
     def __init__(self):
         self.is_connected = False
@@ -33,11 +33,15 @@ class MT5DirectConnection:
         
         # Connection retry logic
         self.max_retries = 3
-        self.retry_delay = 5
+        self.retry_delay = 3  # Reduced from 5 to 3 seconds
         
         # Symbol loading state
         self.symbols_loaded = False
         self.symbols_loading = False
+        
+        # Performance optimization
+        self.monitoring_interval = 1.0  # Reduced from 3 to 1 second
+        self.tick_symbols = ["EURUSD", "GBPUSD", "USDJPY", "AUDUSD", "USDCAD"]  # Focus on major pairs for faster updates
         
     async def initialize(self) -> bool:
         """Initialize connection to MT5 Terminal with enhanced error handling"""
@@ -80,16 +84,6 @@ class MT5DirectConnection:
                     logger.error("   3. Enable 'Allow automated trading' in Tools → Options → Expert Advisors")
                     logger.error("   4. Check if your broker allows API connections")
                 
-                # Try to get more information about MT5 state
-                try:
-                    terminal_info = mt5.terminal_info()
-                    if terminal_info:
-                        logger.info(f"📊 Terminal info available: {terminal_info}")
-                    else:
-                        logger.error("❌ No terminal info available - MT5 may not be running")
-                except Exception as e:
-                    logger.error(f"❌ Error getting terminal info: {e}")
-                
                 return False
             
             logger.info("✅ MT5 initialized successfully")
@@ -100,7 +94,6 @@ class MT5DirectConnection:
                 if terminal_info:
                     logger.info(f"📊 Terminal: {terminal_info.name} {terminal_info.build}")
                     logger.info(f"📊 Company: {terminal_info.company}")
-                    logger.info(f"📊 Path: {terminal_info.path}")
                     logger.info(f"📊 Connected: {terminal_info.connected}")
                     logger.info(f"📊 Trade allowed: {terminal_info.trade_allowed}")
                 else:
@@ -282,10 +275,6 @@ class MT5DirectConnection:
                     if not symbol_info:
                         continue
                     symbol = symbol_info
-                
-                # Skip symbols that are not visible (optional - comment out to include all)
-                # if not getattr(symbol, 'visible', True):
-                #     continue
                 
                 # Try to select symbol to make it available
                 try:
@@ -590,11 +579,11 @@ class MT5DirectConnection:
     
     async def get_available_pairs(self) -> List[CurrencyPair]:
         """Get available currency pairs - returns the actual loaded pairs"""
-        logger.info(f"📊 MT5DirectConnection: get_available_pairs called")
-        logger.info(f"📊 Connection status: {self.is_connected}")
-        logger.info(f"📊 Symbols loaded: {self.symbols_loaded}")
-        logger.info(f"📊 Symbols loading: {self.symbols_loading}")
-        logger.info(f"📊 Currency pairs count: {len(self.currency_pairs)}")
+        logger.debug(f"📊 MT5DirectConnection: get_available_pairs called")
+        logger.debug(f"📊 Connection status: {self.is_connected}")
+        logger.debug(f"📊 Symbols loaded: {self.symbols_loaded}")
+        logger.debug(f"📊 Symbols loading: {self.symbols_loading}")
+        logger.debug(f"📊 Currency pairs count: {len(self.currency_pairs)}")
         
         if not self.is_connected:
             logger.warning("⚠️ MT5 not connected, returning empty pairs list")
@@ -610,13 +599,13 @@ class MT5DirectConnection:
             logger.info("⏳ Waiting for symbol loading to complete...")
             await asyncio.sleep(0.1)
         
-        logger.info(f"✅ Returning {len(self.currency_pairs)} currency pairs")
+        logger.debug(f"✅ Returning {len(self.currency_pairs)} currency pairs")
         
         # Log first few pairs for debugging
         if self.currency_pairs:
-            logger.info("📋 First few pairs:")
+            logger.debug("📋 First few pairs:")
             for i, pair in enumerate(self.currency_pairs[:3]):
-                logger.info(f"   {i+1}. {pair.symbol} ({pair.category}) - {pair.name}")
+                logger.debug(f"   {i+1}. {pair.symbol} ({pair.category}) - {pair.name}")
         else:
             logger.error("❌ No currency pairs available to return!")
         
@@ -637,7 +626,7 @@ class MT5DirectConnection:
             await self._load_symbols_async()
     
     async def get_current_tick(self, symbol: str = "EURUSD") -> Optional[MT5Tick]:
-        """Get current tick data for symbol"""
+        """Get current tick data for symbol with optimized performance"""
         if not self.is_connected:
             return None
         
@@ -649,7 +638,7 @@ class MT5DirectConnection:
                     tick = mt5.symbol_info_tick(symbol)
                 
                 if tick is None:
-                    logger.warning(f"⚠️ No tick data available for {symbol}")
+                    logger.debug(f"⚠️ No tick data available for {symbol}")
                     return None
             
             return MT5Tick(
@@ -793,43 +782,52 @@ class MT5DirectConnection:
         return type_map.get(order_type, 'UNKNOWN')
     
     async def start_monitoring(self):
-        """Start monitoring MT5 data"""
+        """Start optimized monitoring MT5 data with reduced delay"""
         if self.monitoring_task is None:
             self.monitoring_task = asyncio.create_task(self._monitoring_loop())
     
     async def _monitoring_loop(self):
-        """Main monitoring loop for real-time data"""
-        logger.info("🔄 Starting MT5 monitoring loop...")
+        """Optimized monitoring loop for real-time data with minimal delay"""
+        logger.info("🔄 Starting optimized MT5 monitoring loop...")
         
         while self.is_connected:
             try:
-                # Update account info
-                account_info = mt5.account_info()
-                if account_info:
-                    self.account_info = account_info._asdict()
-                    await self._notify_subscribers('account_info', self.account_info)
+                # Update account info less frequently (every 3 cycles)
+                if hasattr(self, '_monitor_cycle'):
+                    self._monitor_cycle += 1
+                else:
+                    self._monitor_cycle = 0
                 
-                # Get tick data for available symbols (first few)
-                if self.currency_pairs:
-                    available_symbols = [pair.symbol for pair in self.currency_pairs[:5]]  # First 5 symbols
-                    for symbol in available_symbols:
+                if self._monitor_cycle % 3 == 0:
+                    account_info = mt5.account_info()
+                    if account_info:
+                        self.account_info = account_info._asdict()
+                        await self._notify_subscribers('account_info', self.account_info)
+                
+                # Get tick data for focused symbols (faster than all symbols)
+                for symbol in self.tick_symbols:
+                    try:
                         tick = await self.get_current_tick(symbol)
                         if tick:
                             await self._notify_subscribers('tick', tick.dict())
+                    except Exception as e:
+                        logger.debug(f"Error getting tick for {symbol}: {e}")
+                        continue
                 
-                # Get positions and orders
-                positions = await self.get_positions()
-                orders = await self.get_orders()
+                # Get positions and orders less frequently (every 5 cycles)
+                if self._monitor_cycle % 5 == 0:
+                    positions = await self.get_positions()
+                    orders = await self.get_orders()
+                    
+                    await self._notify_subscribers('positions', positions)
+                    await self._notify_subscribers('orders', orders)
                 
-                await self._notify_subscribers('positions', positions)
-                await self._notify_subscribers('orders', orders)
-                
-                # Wait before next update
-                await asyncio.sleep(3)  # Update every 3 seconds
+                # Optimized wait time for minimal delay
+                await asyncio.sleep(self.monitoring_interval)
                 
             except Exception as e:
                 logger.error(f"❌ Error in monitoring loop: {e}")
-                await asyncio.sleep(5)  # Wait longer on error
+                await asyncio.sleep(2)  # Wait longer on error
     
     def subscribe(self, callback):
         """Subscribe to MT5 events"""
@@ -841,12 +839,24 @@ class MT5DirectConnection:
             self.subscribers.remove(callback)
     
     async def _notify_subscribers(self, event_type: str, data):
-        """Notify all subscribers of events"""
+        """Notify all subscribers of events with optimized async processing"""
+        if not self.subscribers:
+            return
+            
+        # Process notifications concurrently for better performance
+        tasks = []
         for callback in self.subscribers:
             try:
-                await callback(event_type, data)
+                task = asyncio.create_task(callback(event_type, data))
+                tasks.append(task)
             except Exception as e:
-                logger.error(f"❌ Error notifying subscriber: {e}")
+                logger.error(f"❌ Error creating notification task: {e}")
+        
+        if tasks:
+            try:
+                await asyncio.gather(*tasks, return_exceptions=True)
+            except Exception as e:
+                logger.error(f"❌ Error in notification gathering: {e}")
     
     async def place_order(self, symbol: str, order_type: str, volume: float, price: float = None, 
                          sl: float = None, tp: float = None, comment: str = "") -> Dict:

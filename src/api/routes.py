@@ -1,10 +1,11 @@
-"""API routes for the application with direct MT5 integration only - Fixed dependency injection"""
+"""API routes for the application with direct MT5 integration only - Fixed SuperTrend calculation endpoint"""
 
 import logging
 from datetime import datetime
 from typing import List, Optional
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Query
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 
 from src.core.models import (
     SuperTrendConfig, DashboardState, TradingSignal,
@@ -20,6 +21,13 @@ api_router = APIRouter()
 # Global instances - will be injected from main.py
 _mt5_manager = None
 _calculator = None
+
+# Request models for API endpoints
+class SuperTrendRequest(BaseModel):
+    symbol: str
+    timeframe: str = "M15"
+    periods: Optional[int] = None
+    multiplier: Optional[float] = None
 
 def set_mt5_manager(manager):
     """Set the global MT5 manager instance (called from main.py)"""
@@ -66,9 +74,9 @@ async def get_connection_status():
     """Get MT5 connection status"""
     try:
         mt5 = get_mt5_manager()
-        logger.info("📊 API: Getting connection status...")
+        logger.debug("📊 API: Getting connection status...")
         connection = await mt5.get_connection_status()
-        logger.info(f"📊 Connection status: {connection.is_connected} ({connection.connection_type})")
+        logger.debug(f"📊 Connection status: {connection.is_connected} ({connection.connection_type})")
         return connection
     except Exception as e:
         logger.error(f"Error getting connection status: {e}")
@@ -78,7 +86,7 @@ async def get_connection_status():
 async def get_currency_pairs():
     """Get available currency pairs from MT5 account with enhanced debugging"""
     try:
-        logger.info("📊 API: Getting currency pairs...")
+        logger.debug("📊 API: Getting currency pairs...")
         
         # Check if MT5 manager is available
         if _mt5_manager is None:
@@ -86,11 +94,11 @@ async def get_currency_pairs():
             return []
         
         mt5 = get_mt5_manager()
-        logger.info(f"📊 MT5 manager instance: {id(mt5)}")
+        logger.debug(f"📊 MT5 manager instance: {id(mt5)}")
         
         # Get connection status first
         connection = await mt5.get_connection_status()
-        logger.info(f"📊 Connection status: {connection.is_connected} ({connection.connection_type})")
+        logger.debug(f"📊 Connection status: {connection.is_connected} ({connection.connection_type})")
         
         if not connection.is_connected:
             logger.warning("⚠️ MT5 not connected, attempting to reconnect...")
@@ -106,14 +114,14 @@ async def get_currency_pairs():
         
         # Get pairs from MT5 manager
         pairs = await mt5.get_available_pairs()
-        logger.info(f"📊 Retrieved {len(pairs)} pairs from MT5 manager")
+        logger.debug(f"📊 Retrieved {len(pairs)} pairs from MT5 manager")
         
         if not pairs:
             logger.warning("⚠️ No trading pairs available from MT5, attempting force reload...")
             
             # Try to force reload pairs
             pairs = await mt5.force_reload_pairs()
-            logger.info(f"📊 Force reload returned {len(pairs)} pairs")
+            logger.debug(f"📊 Force reload returned {len(pairs)} pairs")
             
             if not pairs:
                 logger.error("❌ Still no pairs available after force reload")
@@ -136,13 +144,13 @@ async def get_currency_pairs():
                 if not pairs:
                     return []
         
-        logger.info(f"✅ API: Returning {len(pairs)} trading pairs")
+        logger.debug(f"✅ API: Returning {len(pairs)} trading pairs")
         
         # Log first few pairs for debugging
         if pairs:
-            logger.info("📋 First few pairs being returned:")
+            logger.debug("📋 First few pairs being returned:")
             for i, pair in enumerate(pairs[:3]):
-                logger.info(f"   {i+1}. {pair.symbol} ({pair.category}) - {pair.name}")
+                logger.debug(f"   {i+1}. {pair.symbol} ({pair.category}) - {pair.name}")
         
         return pairs
         
@@ -253,7 +261,7 @@ async def debug_currency_pairs():
         }
 
 @api_router.get("/tick")
-async def get_current_tick(symbol: str = "EURUSD"):
+async def get_current_tick(symbol: str = Query(default="EURUSD")):
     """Get current tick data from MT5"""
     try:
         mt5 = get_mt5_manager()
@@ -270,9 +278,9 @@ async def get_current_tick(symbol: str = "EURUSD"):
 
 @api_router.get("/market-data", response_model=List[MarketData])
 async def get_market_data(
-    symbol: str = "EURUSD",
-    timeframe: str = "M15",
-    count: int = 100
+    symbol: str = Query(default="EURUSD"),
+    timeframe: str = Query(default="M15"),
+    count: int = Query(default=100)
 ):
     """Get market data from MT5"""
     try:
@@ -360,25 +368,34 @@ async def get_config():
     return calc.config
 
 @api_router.post("/calculate")
-async def calculate_supertrend(
-    symbol: str,
-    timeframe: str = "M15"
-):
-    """Calculate SuperTrend for given symbol using MT5 data"""
+async def calculate_supertrend(request: SuperTrendRequest):
+    """Calculate SuperTrend for given symbol using MT5 data - Fixed to accept JSON body"""
     try:
+        logger.info(f"📊 Calculating SuperTrend for {request.symbol} on {request.timeframe}")
+        
         calc = get_calculator()
         mt5 = get_mt5_manager()
         
+        # Update calculator config if custom parameters provided
+        if request.periods or request.multiplier:
+            current_config = calc.config
+            if request.periods:
+                current_config.periods = request.periods
+            if request.multiplier:
+                current_config.multiplier = request.multiplier
+            calc.update_config(current_config)
+        
         # Set symbol and add market data
-        calc.set_symbol(symbol)
+        calc.set_symbol(request.symbol)
         
         # Get market data for the symbol from MT5
-        market_data = await mt5.get_market_data(symbol, timeframe, 100)
+        market_data = await mt5.get_market_data(request.symbol, request.timeframe, 100)
         
         if not market_data:
+            logger.warning(f"No market data available for {request.symbol} on {request.timeframe}")
             return {
                 "status": "no_data",
-                "message": f"No market data available for {symbol} on {timeframe} timeframe"
+                "message": f"No market data available for {request.symbol} on {request.timeframe} timeframe"
             }
         
         # Add data to calculator
@@ -389,22 +406,27 @@ async def calculate_supertrend(
         result = calc.calculate()
         
         if result is None:
+            logger.warning(f"Insufficient data for SuperTrend calculation on {request.symbol}")
             return {
                 "status": "insufficient_data", 
                 "message": f"Not enough data for SuperTrend calculation. Need at least {calc.config.periods + 1} candles."
             }
         
+        logger.info(f"✅ SuperTrend calculated successfully for {request.symbol}")
+        
         return {
             "status": "success",
             "result": result.dict(),
-            "symbol": symbol,
-            "timeframe": timeframe,
+            "symbol": request.symbol,
+            "timeframe": request.timeframe,
             "data_points": len(market_data),
             "timestamp": datetime.now().isoformat()
         }
         
     except Exception as e:
-        logger.error(f"Error calculating SuperTrend: {e}")
+        logger.error(f"❌ Error calculating SuperTrend: {e}")
+        import traceback
+        logger.error(f"❌ Traceback: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @api_router.post("/test-connection")
