@@ -104,14 +104,18 @@ async def health_check():
         
         # Get symbol count from direct connection if available
         symbol_count = len(pairs)
+        pairs_count = len(pairs)
+        
         if hasattr(mt5_manager, 'direct_connection') and mt5_manager.direct_connection:
             symbol_count = mt5_manager.direct_connection.get_symbols_count()
+            pairs_count = mt5_manager.direct_connection.get_pairs_count()
         
         return {
             "status": "healthy",
             "mt5_connected": connection_status.is_connected,
             "pairs_available": symbol_count,
-            "pairs_loaded": len(pairs),
+            "pairs_loaded": pairs_count,
+            "pairs_returned": len(pairs),
             "websocket_connections": websocket_manager.get_connection_count(),
             "timestamp": "2024-01-01T00:00:00Z"
         }
@@ -122,6 +126,7 @@ async def health_check():
             "mt5_connected": False,
             "pairs_available": 0,
             "pairs_loaded": 0,
+            "pairs_returned": 0,
             "websocket_connections": 0,
             "error": str(e),
             "timestamp": "2024-01-01T00:00:00Z"
