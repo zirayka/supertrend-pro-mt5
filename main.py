@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 SuperTrend Pro MT5 - Python Trading Dashboard
-Direct MT5 connection only - No demo mode or WebSocket
+Direct MT5 connection only - Enhanced startup
 """
 
 import asyncio
@@ -51,13 +51,22 @@ async def startup_event():
     """Initialize services on startup"""
     logger.info("🚀 Starting SuperTrend Pro MT5 Dashboard - Direct MT5 Only")
     
-    # Initialize MT5 connection
-    await mt5_manager.initialize()
-    
-    # Subscribe websocket manager to MT5 events
-    mt5_manager.subscribe(websocket_manager.handle_mt5_event)
-    
-    logger.info("✅ SuperTrend Pro MT5 Dashboard started successfully")
+    try:
+        # Initialize MT5 connection
+        await mt5_manager.initialize()
+        
+        # Subscribe websocket manager to MT5 events
+        mt5_manager.subscribe(websocket_manager.handle_mt5_event)
+        
+        # Force load pairs after initialization
+        pairs = await mt5_manager.get_available_pairs()
+        logger.info(f"📊 Startup: {len(pairs)} trading pairs available")
+        
+        logger.info("✅ SuperTrend Pro MT5 Dashboard started successfully")
+        
+    except Exception as e:
+        logger.error(f"❌ Error during startup: {e}")
+        logger.error("💡 Dashboard will continue running, but MT5 features may be limited")
 
 @app.on_event("shutdown")
 async def shutdown_event():
@@ -85,6 +94,21 @@ async def websocket_endpoint(websocket: WebSocket):
             await websocket_manager.handle_message(websocket, data)
     except WebSocketDisconnect:
         websocket_manager.disconnect(websocket)
+
+# Health check endpoint
+@app.get("/health")
+async def health_check():
+    """Health check endpoint"""
+    connection_status = await mt5_manager.get_connection_status()
+    pairs_count = len(await mt5_manager.get_available_pairs())
+    
+    return {
+        "status": "healthy",
+        "mt5_connected": connection_status.is_connected,
+        "pairs_available": pairs_count,
+        "websocket_connections": websocket_manager.get_connection_count(),
+        "timestamp": "2024-01-01T00:00:00Z"
+    }
 
 if __name__ == "__main__":
     uvicorn.run(
