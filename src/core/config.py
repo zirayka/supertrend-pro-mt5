@@ -12,7 +12,7 @@ class Settings(BaseSettings):
     
     # Server settings
     HOST: str = "127.0.0.1"
-    PORT: int = 8000
+    PORT: int = 3000  # Changed from 8000 to avoid Windows permission issues
     DEBUG: bool = True
     
     # MT5 settings
