@@ -37,7 +37,7 @@ class MT5ConnectionManager:
         
     async def initialize(self):
         """Initialize MT5 direct connection"""
-        logger.info("🔍 Initializing MT5 direct connection...")
+        logger.info("Initializing MT5 direct connection...")
         
         # Try direct MT5 connection
         if await self._try_direct_connection():
@@ -45,8 +45,8 @@ class MT5ConnectionManager:
             return
         
         # If direct connection fails, log error and exit
-        logger.error("❌ Failed to establish MT5 connection")
-        logger.error("💡 Please ensure:")
+        logger.error("Failed to establish MT5 connection")
+        logger.error("Please ensure:")
         logger.error("   1. MetaTrader 5 Terminal is running")
         logger.error("   2. You are logged into a trading account")
         logger.error("   3. 'Allow automated trading' is enabled in MT5 settings")
@@ -58,7 +58,7 @@ class MT5ConnectionManager:
     async def _try_direct_connection(self) -> bool:
         """Try to establish direct MT5 connection"""
         try:
-            logger.info("🔌 Attempting direct MT5 connection...")
+            logger.info("Attempting direct MT5 connection...")
             
             if await self.direct_connection.initialize():
                 self.connection_status.is_connected = True
@@ -73,11 +73,11 @@ class MT5ConnectionManager:
                 # Start monitoring
                 await self.direct_connection.start_monitoring()
                 
-                logger.info("✅ Direct MT5 connection established")
+                logger.info("Direct MT5 connection established")
                 return True
             
         except Exception as e:
-            logger.error(f"❌ Direct MT5 connection failed: {e}")
+            logger.error(f"Direct MT5 connection failed: {e}")
         
         return False
     
@@ -103,10 +103,10 @@ class MT5ConnectionManager:
             market_data = await self.direct_connection.get_market_data("EURUSD", "M15", 100)
             self.market_data = market_data
             
-            logger.info(f"📊 Loaded {len(self.available_pairs)} pairs, {len(self.positions)} positions, {len(self.orders)} orders")
+            logger.info(f"Loaded {len(self.available_pairs)} pairs, {len(self.positions)} positions, {len(self.orders)} orders")
             
         except Exception as e:
-            logger.error(f"❌ Error loading direct connection data: {e}")
+            logger.error(f"Error loading direct connection data: {e}")
     
     async def _handle_direct_connection_event(self, event_type: str, data):
         """Handle events from direct MT5 connection"""
@@ -137,7 +137,7 @@ class MT5ConnectionManager:
                 await self._notify_subscribers("orders", data)
                 
         except Exception as e:
-            logger.error(f"❌ Error handling direct connection event: {e}")
+            logger.error(f"Error handling direct connection event: {e}")
     
     def subscribe(self, callback: Callable):
         """Subscribe to MT5 events"""
@@ -206,4 +206,4 @@ class MT5ConnectionManager:
         if self.direct_connection:
             await self.direct_connection.cleanup()
         
-        logger.info("🧹 MT5 connection manager cleaned up")
+        logger.info("MT5 connection manager cleaned up")

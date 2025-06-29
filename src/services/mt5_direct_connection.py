@@ -56,7 +56,7 @@ class MT5DirectConnection:
     async def initialize(self) -> bool:
         """Initialize connection to MT5 Terminal with enhanced error handling"""
         try:
-            logger.info("🔌 Initializing enhanced MT5 direct connection...")
+            logger.info("Initializing enhanced MT5 direct connection...")
             
             # Initialize MT5 connection in thread pool
             loop = asyncio.get_event_loop()
@@ -68,7 +68,7 @@ class MT5DirectConnection:
             # Get account info
             account_info = await loop.run_in_executor(self.executor, mt5.account_info)
             if account_info is None:
-                logger.error("❌ Failed to get MT5 account info")
+                logger.error("Failed to get MT5 account info")
                 await loop.run_in_executor(self.executor, mt5.shutdown)
                 return False
             
@@ -91,19 +91,19 @@ class MT5DirectConnection:
             
             # Validate connection
             if not await self._validate_connection():
-                logger.error("❌ MT5 connection validation failed")
+                logger.error("MT5 connection validation failed")
                 return False
             
-            logger.info("✅ Enhanced MT5 direct connection established successfully")
-            logger.info(f"📊 Account: {self.connection_info['login']} on {self.connection_info['server']}")
-            logger.info(f"🏢 Company: {self.connection_info['company']}")
-            logger.info(f"💰 Balance: ${self.account_info.get('balance', 0):.2f} {self.connection_info['currency']}")
-            logger.info(f"🔢 Available symbols: {len(self.available_symbols)}")
+            logger.info("Enhanced MT5 direct connection established successfully")
+            logger.info(f"Account: {self.connection_info['login']} on {self.connection_info['server']}")
+            logger.info(f"Company: {self.connection_info['company']}")
+            logger.info(f"Balance: ${self.account_info.get('balance', 0):.2f} {self.connection_info['currency']}")
+            logger.info(f"Available symbols: {len(self.available_symbols)}")
             
             return True
             
         except Exception as e:
-            logger.error(f"❌ Error initializing enhanced MT5 connection: {e}")
+            logger.error(f"Error initializing enhanced MT5 connection: {e}")
             return False
     
     def _initialize_mt5(self) -> bool:
@@ -112,11 +112,11 @@ class MT5DirectConnection:
             # Try to initialize with timeout
             if not mt5.initialize():
                 error_code = mt5.last_error()
-                logger.error(f"❌ MT5 initialization failed, error code: {error_code}")
+                logger.error(f"MT5 initialization failed, error code: {error_code}")
                 return False
             return True
         except Exception as e:
-            logger.error(f"❌ MT5 initialization exception: {e}")
+            logger.error(f"MT5 initialization exception: {e}")
             return False
     
     async def _validate_connection(self) -> bool:
@@ -133,23 +133,23 @@ class MT5DirectConnection:
             # Test symbol info
             symbol_info = await loop.run_in_executor(self.executor, mt5.symbol_info, "EURUSD")
             if not symbol_info:
-                logger.warning("⚠️ Cannot access EURUSD symbol info")
+                logger.warning("Cannot access EURUSD symbol info")
             
             # Test tick data
             tick = await loop.run_in_executor(self.executor, mt5.symbol_info_tick, "EURUSD")
             if not tick:
-                logger.warning("⚠️ Cannot access EURUSD tick data")
+                logger.warning("Cannot access EURUSD tick data")
             
             # Test rates data
             rates = await loop.run_in_executor(self.executor, mt5.copy_rates_from_pos, "EURUSD", mt5.TIMEFRAME_M1, 0, 1)
             if rates is None or len(rates) == 0:
-                logger.warning("⚠️ Cannot access EURUSD rates data")
+                logger.warning("Cannot access EURUSD rates data")
             
-            logger.info("✅ MT5 connection validation successful")
+            logger.info("MT5 connection validation successful")
             return True
             
         except Exception as e:
-            logger.error(f"❌ MT5 connection validation failed: {e}")
+            logger.error(f"MT5 connection validation failed: {e}")
             return False
     
     async def _load_symbols_enhanced(self):
@@ -159,7 +159,7 @@ class MT5DirectConnection:
             symbols = await loop.run_in_executor(self.executor, mt5.symbols_get)
             
             if symbols is None:
-                logger.warning("⚠️ No symbols available from MT5")
+                logger.warning("No symbols available from MT5")
                 return
             
             self.available_symbols = []
@@ -200,11 +200,11 @@ class MT5DirectConnection:
             # Sort symbols by category and name
             self.available_symbols.sort(key=lambda x: (x['category'], x['symbol']))
             
-            logger.info(f"📈 Loaded {len(self.available_symbols)} trading symbols")
-            logger.info(f"📊 Symbol distribution: {symbol_categories}")
+            logger.info(f"Loaded {len(self.available_symbols)} trading symbols")
+            logger.info(f"Symbol distribution: {symbol_categories}")
             
         except Exception as e:
-            logger.error(f"❌ Error loading symbols: {e}")
+            logger.error(f"Error loading symbols: {e}")
     
     def _categorize_symbol_enhanced(self, symbol: str) -> str:
         """Enhanced symbol categorization with more comprehensive rules"""
@@ -293,7 +293,7 @@ class MT5DirectConnection:
             )
             
         except Exception as e:
-            logger.error(f"❌ Error getting connection status: {e}")
+            logger.error(f"Error getting connection status: {e}")
             return MT5Connection(
                 is_connected=False,
                 connection_type="error"
@@ -359,7 +359,7 @@ class MT5DirectConnection:
             return tick_data
             
         except Exception as e:
-            logger.error(f"❌ Error getting tick for {symbol}: {e}")
+            logger.error(f"Error getting tick for {symbol}: {e}")
             self.connection_stats['total_errors'] += 1
             return None
     
@@ -371,12 +371,12 @@ class MT5DirectConnection:
             # Try to select symbol
             selected = await loop.run_in_executor(self.executor, mt5.symbol_select, symbol, True)
             if selected:
-                logger.info(f"✅ Symbol {symbol} selected successfully")
+                logger.info(f"Symbol {symbol} selected successfully")
             else:
-                logger.warning(f"⚠️ Could not select symbol {symbol}")
+                logger.warning(f"Could not select symbol {symbol}")
                 
         except Exception as e:
-            logger.error(f"❌ Error selecting symbol {symbol}: {e}")
+            logger.error(f"Error selecting symbol {symbol}: {e}")
     
     async def get_market_data(self, symbol: str = "EURUSD", timeframe: str = "M15", count: int = 100) -> List[MarketData]:
         """Get historical market data with enhanced caching"""
@@ -426,7 +426,7 @@ class MT5DirectConnection:
                 )
                 
                 if rates is None:
-                    logger.warning(f"⚠️ No market data available for {symbol}")
+                    logger.warning(f"No market data available for {symbol}")
                     return []
             
             market_data = []
@@ -455,7 +455,7 @@ class MT5DirectConnection:
             return market_data
             
         except Exception as e:
-            logger.error(f"❌ Error getting market data for {symbol}: {e}")
+            logger.error(f"Error getting market data for {symbol}: {e}")
             self.connection_stats['total_errors'] += 1
             return []
     
@@ -500,7 +500,7 @@ class MT5DirectConnection:
             return position_list
             
         except Exception as e:
-            logger.error(f"❌ Error getting positions: {e}")
+            logger.error(f"Error getting positions: {e}")
             self.connection_stats['total_errors'] += 1
             return []
     
@@ -571,7 +571,7 @@ class MT5DirectConnection:
             return order_list
             
         except Exception as e:
-            logger.error(f"❌ Error getting orders: {e}")
+            logger.error(f"Error getting orders: {e}")
             self.connection_stats['total_errors'] += 1
             return []
     
@@ -596,7 +596,7 @@ class MT5DirectConnection:
     
     async def _enhanced_monitoring_loop(self):
         """Enhanced monitoring loop with adaptive intervals"""
-        logger.info("🔄 Starting enhanced MT5 monitoring loop...")
+        logger.info("Starting enhanced MT5 monitoring loop...")
         
         base_interval = 2.0  # Base update interval
         error_count = 0
@@ -650,11 +650,11 @@ class MT5DirectConnection:
                 
                 # Check for too many errors
                 if error_count >= max_errors:
-                    logger.error(f"❌ Too many errors ({error_count}), stopping monitoring")
+                    logger.error(f"Too many errors ({error_count}), stopping monitoring")
                     break
                 
             except Exception as e:
-                logger.error(f"❌ Error in enhanced monitoring loop: {e}")
+                logger.error(f"Error in enhanced monitoring loop: {e}")
                 error_count += 1
                 await asyncio.sleep(base_interval * 2)  # Wait longer on exception
     
@@ -673,7 +673,7 @@ class MT5DirectConnection:
             try:
                 await callback(event_type, data)
             except Exception as e:
-                logger.error(f"❌ Error notifying subscriber: {e}")
+                logger.error(f"Error notifying subscriber: {e}")
     
     async def place_order(self, symbol: str, order_type: str, volume: float, price: float = None, 
                          sl: float = None, tp: float = None, comment: str = "") -> Dict:
@@ -752,7 +752,7 @@ class MT5DirectConnection:
             }
             
         except Exception as e:
-            logger.error(f"❌ Error placing order: {e}")
+            logger.error(f"Error placing order: {e}")
             self.connection_stats['total_errors'] += 1
             return {"error": str(e)}
     
@@ -775,7 +775,7 @@ class MT5DirectConnection:
     
     async def cleanup(self):
         """Enhanced cleanup with proper resource management"""
-        logger.info("🧹 Cleaning up enhanced MT5 direct connection...")
+        logger.info("Cleaning up enhanced MT5 direct connection...")
         
         self.is_connected = False
         
@@ -798,4 +798,4 @@ class MT5DirectConnection:
         loop = asyncio.get_event_loop()
         await loop.run_in_executor(None, mt5.shutdown)
         
-        logger.info("✅ Enhanced MT5 direct connection cleaned up successfully")
+        logger.info("Enhanced MT5 direct connection cleaned up successfully")
