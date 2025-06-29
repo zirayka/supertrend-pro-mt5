@@ -1,4 +1,4 @@
-"""API routes for the application with direct MT5 integration only - Enhanced pairs loading"""
+"""API routes for the application with direct MT5 integration only - Fixed pairs synchronization"""
 
 import logging
 from datetime import datetime
@@ -58,29 +58,58 @@ async def get_connection_status(mt5: MT5ConnectionManager = Depends(get_mt5_mana
 
 @api_router.get("/pairs", response_model=List[CurrencyPair])
 async def get_currency_pairs(mt5: MT5ConnectionManager = Depends(get_mt5_manager)):
-    """Get available currency pairs from MT5 account with enhanced loading"""
+    """Get available currency pairs from MT5 account with enhanced debugging"""
     try:
         logger.info("📊 API: Getting currency pairs...")
+        logger.info(f"📊 MT5 manager instance: {id(mt5)}")
+        
+        # Get connection status first
+        connection = await mt5.get_connection_status()
+        logger.info(f"📊 Connection status: {connection.is_connected} ({connection.connection_type})")
+        
+        if not connection.is_connected:
+            logger.warning("⚠️ MT5 not connected, returning empty pairs list")
+            return []
         
         # Get pairs from MT5 manager
         pairs = await mt5.get_available_pairs()
+        logger.info(f"📊 Retrieved {len(pairs)} pairs from MT5 manager")
         
         if not pairs:
             logger.warning("⚠️ No trading pairs available from MT5, attempting force reload...")
             
             # Try to force reload pairs
             pairs = await mt5.force_reload_pairs()
+            logger.info(f"📊 Force reload returned {len(pairs)} pairs")
             
             if not pairs:
                 logger.error("❌ Still no pairs available after force reload")
+                logger.error("🔍 This indicates a fundamental issue with MT5 symbol loading")
+                
+                # Try to get direct connection info for debugging
+                if hasattr(mt5, 'direct_connection') and mt5.direct_connection:
+                    symbols_count = mt5.direct_connection.get_symbols_count()
+                    pairs_count = mt5.direct_connection.get_pairs_count()
+                    logger.error(f"🔍 Direct connection has {symbols_count} symbols, {pairs_count} pairs")
+                
                 # Return empty list instead of raising exception
                 return []
         
         logger.info(f"✅ API: Returning {len(pairs)} trading pairs")
+        
+        # Log first few pairs for debugging
+        if pairs:
+            logger.info("📋 First few pairs being returned:")
+            for i, pair in enumerate(pairs[:3]):
+                logger.info(f"   {i+1}. {pair.symbol} ({pair.category}) - {pair.name}")
+        
         return pairs
         
     except Exception as e:
         logger.error(f"❌ Error getting currency pairs: {e}")
+        logger.error(f"❌ Exception type: {type(e)}")
+        import traceback
+        logger.error(f"❌ Traceback: {traceback.format_exc()}")
         return []
 
 @api_router.get("/pairs/reload")
@@ -103,6 +132,53 @@ async def reload_currency_pairs(mt5: MT5ConnectionManager = Depends(get_mt5_mana
             "status": "error",
             "message": str(e),
             "pairs_count": 0,
+            "timestamp": datetime.now().isoformat()
+        }
+
+@api_router.get("/pairs/debug")
+async def debug_currency_pairs(mt5: MT5ConnectionManager = Depends(get_mt5_manager)):
+    """Debug endpoint to check pairs loading status"""
+    try:
+        logger.info("🔍 API: Debug currency pairs...")
+        
+        # Get connection status
+        connection = await mt5.get_connection_status()
+        
+        # Get pairs
+        pairs = await mt5.get_available_pairs()
+        
+        # Get direct connection info if available
+        direct_info = {}
+        if hasattr(mt5, 'direct_connection') and mt5.direct_connection:
+            direct_info = {
+                "is_connected": mt5.direct_connection.is_connected,
+                "symbols_loaded": mt5.direct_connection.symbols_loaded,
+                "symbols_loading": mt5.direct_connection.symbols_loading,
+                "symbols_count": mt5.direct_connection.get_symbols_count(),
+                "pairs_count": mt5.direct_connection.get_pairs_count(),
+                "available_symbols_length": len(mt5.direct_connection.available_symbols),
+                "currency_pairs_length": len(mt5.direct_connection.currency_pairs)
+            }
+        
+        return {
+            "connection": {
+                "is_connected": connection.is_connected,
+                "connection_type": connection.connection_type,
+                "server": connection.server,
+                "account": connection.account
+            },
+            "pairs": {
+                "count": len(pairs),
+                "sample": [pair.dict() for pair in pairs[:3]] if pairs else []
+            },
+            "direct_connection": direct_info,
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Error in debug endpoint: {e}")
+        return {
+            "error": str(e),
             "timestamp": datetime.now().isoformat()
         }
 

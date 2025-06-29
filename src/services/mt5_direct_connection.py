@@ -1,6 +1,6 @@
 """
 Enhanced MT5 direct connection using MetaTrader5 Python package
-Fixed version with robust symbol loading and proper synchronization
+Fixed version with robust symbol loading and proper API synchronization
 """
 
 import asyncio
@@ -77,7 +77,7 @@ class MT5DirectConnection:
             self.is_connected = True
             
             # Load available symbols immediately and synchronously
-            self._load_symbols_sync()
+            await self._load_symbols_async()
             
             logger.info("✅ MT5 direct connection established successfully")
             logger.info(f"📊 Account: {self.connection_info['login']} on {self.connection_info['server']}")
@@ -92,14 +92,34 @@ class MT5DirectConnection:
             logger.error(f"❌ Error initializing MT5 connection: {e}")
             return False
     
-    def _load_symbols_sync(self):
-        """Load symbols synchronously during initialization"""
+    async def _load_symbols_async(self):
+        """Load symbols asynchronously during initialization"""
         if self.symbols_loading:
-            logger.info("⏳ Symbols already loading, skipping...")
+            logger.info("⏳ Symbols already loading, waiting...")
+            while self.symbols_loading:
+                await asyncio.sleep(0.1)
             return
         
         self.symbols_loading = True
         logger.info("📈 Loading trading symbols from MT5...")
+        
+        try:
+            # Run symbol loading in executor to avoid blocking
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(None, self._load_symbols_sync)
+            
+        except Exception as e:
+            logger.error(f"❌ Error in async symbol loading: {e}")
+            await loop.run_in_executor(None, self._create_fallback_symbols)
+        finally:
+            self.symbols_loading = False
+            self.symbols_loaded = True
+            
+        logger.info(f"✅ Async symbol loading complete: {len(self.available_symbols)} symbols, {len(self.currency_pairs)} pairs")
+    
+    def _load_symbols_sync(self):
+        """Load symbols synchronously"""
+        logger.info("📊 Starting synchronous symbol loading...")
         
         try:
             # Method 1: Get all symbols directly
@@ -108,8 +128,6 @@ class MT5DirectConnection:
                 logger.info(f"✅ Found {len(symbols)} symbols using symbols_get()")
                 self._process_symbols_sync(symbols)
                 if len(self.currency_pairs) > 0:
-                    self.symbols_loaded = True
-                    self.symbols_loading = False
                     logger.info(f"✅ Successfully processed {len(self.currency_pairs)} currency pairs")
                     return
             
@@ -130,8 +148,6 @@ class MT5DirectConnection:
                     logger.info(f"✅ Found {len(loaded_symbols)} symbols by iteration")
                     self._process_symbols_sync(loaded_symbols)
                     if len(self.currency_pairs) > 0:
-                        self.symbols_loaded = True
-                        self.symbols_loading = False
                         logger.info(f"✅ Successfully processed {len(self.currency_pairs)} currency pairs")
                         return
             
@@ -139,27 +155,21 @@ class MT5DirectConnection:
             logger.info("🔄 Trying common symbols...")
             self._load_common_symbols_sync()
             if len(self.currency_pairs) > 0:
-                self.symbols_loaded = True
-                self.symbols_loading = False
                 logger.info(f"✅ Successfully loaded {len(self.currency_pairs)} common symbols")
                 return
             
             # Method 4: Create fallback symbols
             logger.warning("⚠️ Creating fallback symbols...")
             self._create_fallback_symbols()
-            self.symbols_loaded = True
             
         except Exception as e:
             logger.error(f"❌ Error loading symbols: {e}")
             self._create_fallback_symbols()
-            self.symbols_loaded = True
-        finally:
-            self.symbols_loading = False
-            
-        logger.info(f"✅ Symbol loading complete: {len(self.available_symbols)} symbols, {len(self.currency_pairs)} pairs")
     
     def _process_symbols_sync(self, symbols):
         """Process symbols synchronously and create CurrencyPair objects"""
+        logger.info(f"🔄 Processing {len(symbols)} symbols...")
+        
         self.available_symbols = []
         self.currency_pairs = []
         
@@ -182,50 +192,52 @@ class MT5DirectConnection:
                         continue
                     symbol = symbol_info
                 
-                # Skip symbols that are not visible or selectable
+                # Skip symbols that are not visible
                 if not getattr(symbol, 'visible', True):
                     continue
                 
                 # Try to select symbol to make it available
-                if not mt5.symbol_select(symbol_name, True):
-                    continue
+                try:
+                    mt5.symbol_select(symbol_name, True)
+                except:
+                    pass  # Continue even if selection fails
                 
                 category = self._categorize_symbol(symbol_name)
                 symbol_categories[category] += 1
                 
-                # Create symbol info dict
+                # Create symbol info dict with safe attribute access
                 symbol_data = {
                     'symbol': symbol_name,
-                    'description': getattr(symbol, 'description', symbol_name) or symbol_name,
+                    'description': self._safe_get_attr(symbol, 'description', symbol_name) or symbol_name,
                     'category': category,
-                    'digits': getattr(symbol, 'digits', 5),
-                    'point': getattr(symbol, 'point', 0.00001),
-                    'min_lot': getattr(symbol, 'volume_min', 0.01),
-                    'max_lot': getattr(symbol, 'volume_max', 100.0),
-                    'lot_step': getattr(symbol, 'volume_step', 0.01),
-                    'spread': getattr(symbol, 'spread', 2),
-                    'swap_long': getattr(symbol, 'swap_long', -1.0),
-                    'swap_short': getattr(symbol, 'swap_short', 0.5),
-                    'currency_base': getattr(symbol, 'currency_base', 'USD'),
-                    'currency_profit': getattr(symbol, 'currency_profit', 'USD'),
-                    'currency_margin': getattr(symbol, 'currency_margin', 'USD'),
-                    'visible': getattr(symbol, 'visible', True),
+                    'digits': self._safe_get_attr(symbol, 'digits', 5),
+                    'point': self._safe_get_attr(symbol, 'point', 0.00001),
+                    'min_lot': self._safe_get_attr(symbol, 'volume_min', 0.01),
+                    'max_lot': self._safe_get_attr(symbol, 'volume_max', 100.0),
+                    'lot_step': self._safe_get_attr(symbol, 'volume_step', 0.01),
+                    'spread': self._safe_get_attr(symbol, 'spread', 2),
+                    'swap_long': self._safe_get_attr(symbol, 'swap_long', -1.0),
+                    'swap_short': self._safe_get_attr(symbol, 'swap_short', 0.5),
+                    'currency_base': self._safe_get_attr(symbol, 'currency_base', 'USD'),
+                    'currency_profit': self._safe_get_attr(symbol, 'currency_profit', 'USD'),
+                    'currency_margin': self._safe_get_attr(symbol, 'currency_margin', 'USD'),
+                    'visible': self._safe_get_attr(symbol, 'visible', True),
                     'select': True
                 }
                 
                 self.available_symbols.append(symbol_data)
                 
-                # Create CurrencyPair object
+                # Create CurrencyPair object with validation
                 try:
                     pair = CurrencyPair(
                         symbol=symbol_data['symbol'],
                         name=symbol_data['description'],
                         category=symbol_data['category'],
-                        digits=symbol_data['digits'],
-                        point_size=symbol_data['point'],
-                        min_lot=symbol_data['min_lot'],
-                        max_lot=symbol_data['max_lot'],
-                        lot_step=symbol_data['lot_step'],
+                        digits=int(symbol_data['digits']),
+                        point_size=float(symbol_data['point']),
+                        min_lot=float(symbol_data['min_lot']),
+                        max_lot=float(symbol_data['max_lot']),
+                        lot_step=float(symbol_data['lot_step']),
                         spread=float(symbol_data['spread']) if symbol_data['spread'] is not None else 2.0,
                         swap_long=float(symbol_data['swap_long']) if symbol_data['swap_long'] is not None else -1.0,
                         swap_short=float(symbol_data['swap_short']) if symbol_data['swap_short'] is not None else 0.5
@@ -256,10 +268,20 @@ class MT5DirectConnection:
         if len(self.currency_pairs) == 0:
             logger.error("❌ No currency pairs were created from symbols!")
             logger.error("🔍 This might indicate a data processing issue")
+            # Create fallback symbols if processing failed
+            self._create_fallback_symbols()
         else:
             logger.info("📋 Sample currency pairs:")
             for i, pair in enumerate(self.currency_pairs[:3]):
                 logger.info(f"   {i+1}. {pair.symbol} ({pair.category}) - {pair.name}")
+    
+    def _safe_get_attr(self, obj, attr_name, default_value):
+        """Safely get attribute from object with default value"""
+        try:
+            value = getattr(obj, attr_name, default_value)
+            return value if value is not None else default_value
+        except:
+            return default_value
     
     def _load_common_symbols_sync(self):
         """Load common trading symbols synchronously"""
@@ -280,48 +302,52 @@ class MT5DirectConnection:
                 symbol_info = mt5.symbol_info(symbol_name)
                 if symbol_info:
                     # Try to select the symbol
-                    if mt5.symbol_select(symbol_name, True):
-                        category = self._categorize_symbol(symbol_name)
-                        
-                        symbol_data = {
-                            'symbol': symbol_name,
-                            'description': symbol_info.description or symbol_name,
-                            'category': category,
-                            'digits': symbol_info.digits,
-                            'point': symbol_info.point,
-                            'min_lot': symbol_info.volume_min,
-                            'max_lot': symbol_info.volume_max,
-                            'lot_step': symbol_info.volume_step,
-                            'spread': symbol_info.spread,
-                            'swap_long': symbol_info.swap_long,
-                            'swap_short': symbol_info.swap_short,
-                            'currency_base': symbol_info.currency_base,
-                            'currency_profit': symbol_info.currency_profit,
-                            'currency_margin': symbol_info.currency_margin,
-                            'visible': True,
-                            'select': True
-                        }
-                        self.available_symbols.append(symbol_data)
-                        
-                        # Create CurrencyPair object
-                        try:
-                            pair = CurrencyPair(
-                                symbol=symbol_name,
-                                name=symbol_data['description'],
-                                category=category,
-                                digits=symbol_data['digits'],
-                                point_size=symbol_data['point'],
-                                min_lot=symbol_data['min_lot'],
-                                max_lot=symbol_data['max_lot'],
-                                lot_step=symbol_data['lot_step'],
-                                spread=float(symbol_data['spread']) if symbol_data['spread'] is not None else 2.0,
-                                swap_long=float(symbol_data['swap_long']) if symbol_data['swap_long'] is not None else -1.0,
-                                swap_short=float(symbol_data['swap_short']) if symbol_data['swap_short'] is not None else 0.5
-                            )
-                            self.currency_pairs.append(pair)
-                            logger.info(f"✅ Added common symbol: {symbol_name}")
-                        except Exception as e:
-                            logger.debug(f"Error creating pair for {symbol_name}: {e}")
+                    try:
+                        mt5.symbol_select(symbol_name, True)
+                    except:
+                        pass  # Continue even if selection fails
+                    
+                    category = self._categorize_symbol(symbol_name)
+                    
+                    symbol_data = {
+                        'symbol': symbol_name,
+                        'description': symbol_info.description or symbol_name,
+                        'category': category,
+                        'digits': symbol_info.digits,
+                        'point': symbol_info.point,
+                        'min_lot': symbol_info.volume_min,
+                        'max_lot': symbol_info.volume_max,
+                        'lot_step': symbol_info.volume_step,
+                        'spread': symbol_info.spread,
+                        'swap_long': symbol_info.swap_long,
+                        'swap_short': symbol_info.swap_short,
+                        'currency_base': symbol_info.currency_base,
+                        'currency_profit': symbol_info.currency_profit,
+                        'currency_margin': symbol_info.currency_margin,
+                        'visible': True,
+                        'select': True
+                    }
+                    self.available_symbols.append(symbol_data)
+                    
+                    # Create CurrencyPair object
+                    try:
+                        pair = CurrencyPair(
+                            symbol=symbol_name,
+                            name=symbol_data['description'],
+                            category=category,
+                            digits=symbol_data['digits'],
+                            point_size=symbol_data['point'],
+                            min_lot=symbol_data['min_lot'],
+                            max_lot=symbol_data['max_lot'],
+                            lot_step=symbol_data['lot_step'],
+                            spread=float(symbol_data['spread']) if symbol_data['spread'] is not None else 2.0,
+                            swap_long=float(symbol_data['swap_long']) if symbol_data['swap_long'] is not None else -1.0,
+                            swap_short=float(symbol_data['swap_short']) if symbol_data['swap_short'] is not None else 0.5
+                        )
+                        self.currency_pairs.append(pair)
+                        logger.info(f"✅ Added common symbol: {symbol_name}")
+                    except Exception as e:
+                        logger.debug(f"Error creating pair for {symbol_name}: {e}")
             except Exception as e:
                 logger.debug(f"Could not load symbol {symbol_name}: {e}")
                 continue
@@ -465,7 +491,13 @@ class MT5DirectConnection:
             )
     
     async def get_available_pairs(self) -> List[CurrencyPair]:
-        """Get available currency pairs - now returns the actual loaded pairs"""
+        """Get available currency pairs - returns the actual loaded pairs"""
+        logger.info(f"📊 MT5DirectConnection: get_available_pairs called")
+        logger.info(f"📊 Connection status: {self.is_connected}")
+        logger.info(f"📊 Symbols loaded: {self.symbols_loaded}")
+        logger.info(f"📊 Symbols loading: {self.symbols_loading}")
+        logger.info(f"📊 Currency pairs count: {len(self.currency_pairs)}")
+        
         if not self.is_connected:
             logger.warning("⚠️ MT5 not connected, returning empty pairs list")
             return []
@@ -473,13 +505,22 @@ class MT5DirectConnection:
         # If symbols are not loaded yet, try to load them
         if not self.symbols_loaded and not self.symbols_loading:
             logger.info("🔄 Symbols not loaded, loading now...")
-            self._load_symbols_sync()
+            await self._load_symbols_async()
         
         # Wait for loading to complete if in progress
         while self.symbols_loading:
+            logger.info("⏳ Waiting for symbol loading to complete...")
             await asyncio.sleep(0.1)
         
-        logger.info(f"📊 Returning {len(self.currency_pairs)} currency pairs")
+        logger.info(f"✅ Returning {len(self.currency_pairs)} currency pairs")
+        
+        # Log first few pairs for debugging
+        if self.currency_pairs:
+            logger.info("📋 First few pairs:")
+            for i, pair in enumerate(self.currency_pairs[:3]):
+                logger.info(f"   {i+1}. {pair.symbol} ({pair.category}) - {pair.name}")
+        else:
+            logger.error("❌ No currency pairs available to return!")
         
         # Return a copy to prevent external modification
         return [pair for pair in self.currency_pairs]
@@ -495,7 +536,7 @@ class MT5DirectConnection:
     async def _load_symbols(self):
         """Async wrapper for symbol loading (for compatibility)"""
         if not self.symbols_loaded:
-            self._load_symbols_sync()
+            await self._load_symbols_async()
     
     async def get_current_tick(self, symbol: str = "EURUSD") -> Optional[MT5Tick]:
         """Get current tick data for symbol"""
