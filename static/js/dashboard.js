@@ -177,14 +177,6 @@ class SuperTrendDashboard {
             });
         }
         
-        // Pair selector
-        const pairSelector = document.getElementById('pair-selector');
-        if (pairSelector) {
-            pairSelector.addEventListener('change', (e) => {
-                this.changeSymbol(e.target.value);
-            });
-        }
-        
         // Pair search
         const pairSearch = document.getElementById('pair-search');
         if (pairSearch) {
@@ -208,6 +200,9 @@ class SuperTrendDashboard {
             });
         });
         
+        // Pair selection from list
+        this.setupPairSelection();
+        
         // Parameter controls
         this.setupParameterControls();
         
@@ -230,6 +225,75 @@ class SuperTrendDashboard {
         
         // Connection test modal
         this.setupConnectionTestModal();
+    }
+    
+    setupPairSelection() {
+        // Add click listeners to pair items
+        document.addEventListener('click', (e) => {
+            const pairItem = e.target.closest('.pair-item');
+            if (pairItem) {
+                const symbol = pairItem.dataset.symbol;
+                if (symbol) {
+                    this.selectPair(symbol, pairItem);
+                }
+            }
+        });
+    }
+    
+    selectPair(symbol, pairElement) {
+        // Remove previous selection
+        document.querySelectorAll('.pair-item').forEach(item => {
+            item.classList.remove('selected');
+        });
+        
+        // Add selection to clicked item
+        pairElement.classList.add('selected');
+        
+        // Update current symbol
+        this.currentSymbol = symbol;
+        
+        // Update UI
+        const currentSymbolEl = document.getElementById('current-symbol');
+        const footerPairEl = document.getElementById('footer-pair');
+        
+        if (currentSymbolEl) currentSymbolEl.textContent = symbol;
+        if (footerPairEl) footerPairEl.textContent = symbol;
+        
+        // Update pair details
+        this.updatePairDetails(symbol);
+        
+        // Reset chart data
+        this.resetData();
+        
+        // Refresh tick data for new symbol
+        this.refreshData();
+        
+        console.log(`📊 Selected pair: ${symbol}`);
+    }
+    
+    updatePairDetails(symbol) {
+        // Find pair data
+        const pair = this.availablePairs.find(p => p.symbol === symbol);
+        if (pair) {
+            this.updateSelectedPairInfo(pair);
+        } else {
+            // Use default values for sample pairs
+            const samplePairData = {
+                symbol: symbol,
+                digits: symbol.includes('JPY') ? 3 : 5,
+                min_lot: 0.01,
+                spread: 1.5,
+                category: this.getCategoryFromSymbol(symbol)
+            };
+            this.updateSelectedPairInfo(samplePairData);
+        }
+    }
+    
+    getCategoryFromSymbol(symbol) {
+        if (['XAUUSD', 'XAGUSD', 'XPTUSD', 'XPDUSD'].includes(symbol)) return 'commodities';
+        if (['ZECUSD', 'ALGOUSD', 'XTZUSD'].includes(symbol)) return 'crypto';
+        if (symbol.length === 6 && symbol.match(/^[A-Z]{6}$/)) return 'major';
+        return 'other';
     }
     
     setupParameterControls() {
@@ -446,15 +510,25 @@ class SuperTrendDashboard {
     }
     
     showNoPairsMessage() {
-        const selector = document.getElementById('pair-selector');
-        if (selector) {
-            selector.innerHTML = '<option value="" disabled>No pairs available - Check MT5 connection</option>';
+        const pairsList = document.getElementById('pairs-list');
+        if (pairsList) {
+            pairsList.innerHTML = `
+                <div class="text-center text-gray-400 py-8 px-4">
+                    <div class="w-12 h-12 mx-auto mb-3 rounded-full bg-gray-800/50 flex items-center justify-center">
+                        <i data-lucide="wifi-off" class="w-6 h-6 opacity-50"></i>
+                    </div>
+                    <p class="font-medium text-sm mb-1">No pairs available</p>
+                    <p class="text-xs text-gray-500">Check MT5 connection</p>
+                </div>
+            `;
         }
         
         const pairsCount = document.getElementById('pairs-count');
         if (pairsCount) {
             pairsCount.textContent = '0 pairs';
         }
+        
+        lucide.createIcons();
     }
     
     async loadAccountSummary() {
@@ -531,59 +605,67 @@ class SuperTrendDashboard {
             pairsCount.textContent = `${pairs.length} pairs`;
         }
         
-        // Populate selector
-        this.populatePairSelector();
+        // Populate pairs list
+        this.populatePairsList();
         
         console.log(`📈 Loaded ${pairs.length} trading pairs from MT5`);
     }
     
-    populatePairSelector() {
-        const selector = document.getElementById('pair-selector');
-        if (!selector) return;
-        
-        selector.innerHTML = '';
+    populatePairsList() {
+        const pairsList = document.getElementById('pairs-list');
+        if (!pairsList) return;
         
         if (this.filteredPairs.length === 0) {
-            const option = document.createElement('option');
-            option.value = '';
-            option.textContent = 'No pairs available - Check MT5 connection';
-            option.disabled = true;
-            selector.appendChild(option);
+            this.showNoPairsMessage();
             return;
         }
         
-        this.filteredPairs.forEach(pair => {
-            const option = document.createElement('option');
-            option.value = pair.symbol;
-            option.textContent = `${pair.symbol} - ${pair.name}`;
-            option.dataset.category = pair.category;
-            option.dataset.digits = pair.digits;
-            option.dataset.minLot = pair.min_lot;
-            option.dataset.spread = pair.spread || 0;
+        let html = '';
+        this.filteredPairs.slice(0, 20).forEach(pair => { // Show first 20 pairs
+            const categoryClass = `category-${pair.category}`;
+            const isSelected = pair.symbol === this.currentSymbol ? 'selected' : '';
             
-            if (pair.symbol === this.currentSymbol) {
-                option.selected = true;
-                this.updateSelectedPairInfo(pair);
-            }
-            
-            selector.appendChild(option);
+            html += `
+                <div class="pair-item ${isSelected} p-3 border-b border-white/5 hover:bg-white/5 cursor-pointer transition-all" data-symbol="${pair.symbol}">
+                    <div class="flex items-center justify-between">
+                        <div class="flex-1">
+                            <div class="flex items-center space-x-2 mb-1">
+                                <span class="text-white font-medium text-sm">${pair.symbol}</span>
+                                <span class="category-badge ${categoryClass}">${pair.category.toUpperCase()}</span>
+                            </div>
+                            <div class="text-gray-400 text-xs">${pair.name}</div>
+                        </div>
+                        <div class="text-right">
+                            <div class="text-white font-medium text-sm">--</div>
+                            <div class="text-gray-400 text-xs">--</div>
+                        </div>
+                    </div>
+                </div>
+            `;
         });
         
-        // Add change listener for pair info
-        selector.addEventListener('change', (e) => {
-            const selectedOption = e.target.selectedOptions[0];
-            if (selectedOption) {
-                const pairInfo = {
-                    symbol: selectedOption.value,
-                    name: selectedOption.textContent.split(' - ')[1],
-                    category: selectedOption.dataset.category,
-                    digits: parseInt(selectedOption.dataset.digits),
-                    min_lot: parseFloat(selectedOption.dataset.minLot),
-                    spread: parseFloat(selectedOption.dataset.spread)
-                };
-                this.updateSelectedPairInfo(pairInfo);
-            }
-        });
+        pairsList.innerHTML = html;
+        
+        // Re-setup pair selection listeners
+        this.setupPairSelection();
+    }
+    
+    filterPairs(searchTerm) {
+        const term = searchTerm.toLowerCase();
+        this.filteredPairs = this.availablePairs.filter(pair => 
+            pair.symbol.toLowerCase().includes(term) || 
+            pair.name.toLowerCase().includes(term)
+        );
+        this.populatePairsList();
+    }
+    
+    filterByCategory(category) {
+        if (category === 'all') {
+            this.filteredPairs = [...this.availablePairs];
+        } else {
+            this.filteredPairs = this.availablePairs.filter(pair => pair.category === category);
+        }
+        this.populatePairsList();
     }
     
     updateSelectedPairInfo(pair) {
@@ -603,24 +685,6 @@ class SuperTrendDashboard {
         infoPanel.classList.remove('hidden');
     }
     
-    filterPairs(searchTerm) {
-        const term = searchTerm.toLowerCase();
-        this.filteredPairs = this.availablePairs.filter(pair => 
-            pair.symbol.toLowerCase().includes(term) || 
-            pair.name.toLowerCase().includes(term)
-        );
-        this.populatePairSelector();
-    }
-    
-    filterByCategory(category) {
-        if (category === 'all') {
-            this.filteredPairs = [...this.availablePairs];
-        } else {
-            this.filteredPairs = this.availablePairs.filter(pair => pair.category === category);
-        }
-        this.populatePairSelector();
-    }
-    
     updateAccountInfo(accountData) {
         this.accountInfo = { ...this.accountInfo, ...accountData };
         
@@ -633,7 +697,7 @@ class SuperTrendDashboard {
         const balanceEl = document.getElementById('account-balance');
         const equityEl = document.getElementById('account-equity');
         const freeMarginEl = document.getElementById('account-free-margin');
-        const marginLevelEl = document.getElementById('account-margin-level');
+        const marginLevelEl = document.getElementById('margin-level-percent');
         
         if (balanceEl) balanceEl.textContent = `$${balance.toFixed(2)}`;
         if (equityEl) equityEl.textContent = `$${equity.toFixed(2)}`;
@@ -653,11 +717,9 @@ class SuperTrendDashboard {
         
         // Update margin level bar
         const marginBar = document.getElementById('margin-level-bar');
-        const marginPercent = document.getElementById('margin-level-percent');
-        if (marginBar && marginPercent) {
+        if (marginBar) {
             const safeLevel = Math.min(marginLevel, 100);
             marginBar.style.width = `${safeLevel}%`;
-            marginPercent.textContent = `${marginLevel.toFixed(1)}%`;
             
             // Color based on margin level
             if (marginLevel > 100) {
@@ -986,35 +1048,35 @@ class SuperTrendDashboard {
         
         // Create signal element
         const signalElement = document.createElement('div');
-        signalElement.className = 'glass rounded-xl p-4 mb-3 animate-fade-in';
+        signalElement.className = `alert-item alert-${signal.type} p-3 border-b border-white/5 animate-fade-in`;
         signalElement.innerHTML = `
             <div class="flex items-center justify-between">
                 <div class="flex items-center space-x-3">
                     <div class="${signal.type === 'buy' ? 'text-emerald-400' : 'text-red-400'}">
-                        <i data-lucide="${signal.type === 'buy' ? 'trending-up' : 'trending-down'}" class="w-5 h-5"></i>
+                        <i data-lucide="${signal.type === 'buy' ? 'trending-up' : 'trending-down'}" class="w-4 h-4"></i>
                     </div>
                     <div>
-                        <div class="flex items-center space-x-2">
-                            <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
+                        <div class="flex items-center space-x-2 mb-1">
+                            <span class="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium ${
                                 signal.type === 'buy' ? 'bg-emerald-500/20 text-emerald-400' : 'bg-red-500/20 text-red-400'
                             }">
                                 ${signal.type.toUpperCase()}
                             </span>
-                            <span class="text-white font-medium">${this.formatPrice(signal.price)}</span>
+                            <span class="text-white font-medium text-sm">${this.formatPrice(signal.price)}</span>
                         </div>
-                        <div class="text-gray-400 text-sm">
+                        <div class="text-gray-400 text-xs">
                             Strength: ${signal.strength.toFixed(1)}% | Confidence: ${signal.confidence.toFixed(1)}%
                         </div>
                     </div>
                 </div>
-                <div class="text-gray-400 text-sm">
+                <div class="text-gray-400 text-xs">
                     ${new Date(signal.timestamp).toLocaleTimeString()}
                 </div>
             </div>
         `;
         
         // Replace "no signals" message if it exists
-        if (alertsContent.querySelector('.opacity-50')) {
+        if (alertsContent.querySelector('.text-center')) {
             alertsContent.innerHTML = '';
         }
         
@@ -1022,7 +1084,7 @@ class SuperTrendDashboard {
         alertsContent.insertBefore(signalElement, alertsContent.firstChild);
         
         // Keep only last 10 signals
-        const signals = alertsContent.querySelectorAll('.glass');
+        const signals = alertsContent.querySelectorAll('.alert-item');
         if (signals.length > 10) {
             signals[signals.length - 1].remove();
         }
@@ -1102,10 +1164,12 @@ class SuperTrendDashboard {
         const alertsContent = document.getElementById('alerts-content');
         if (alertsContent) {
             alertsContent.innerHTML = `
-                <div class="text-center text-gray-400 py-8">
-                    <i data-lucide="bell" class="w-12 h-12 mx-auto mb-3 opacity-50"></i>
-                    <p class="font-medium">No signals yet</p>
-                    <p class="text-sm">Trading signals will appear here when conditions are met</p>
+                <div class="text-center text-gray-400 py-8 px-4">
+                    <div class="w-12 h-12 mx-auto mb-3 rounded-full bg-gray-800/50 flex items-center justify-center">
+                        <i data-lucide="bell" class="w-6 h-6 opacity-50"></i>
+                    </div>
+                    <p class="font-medium text-sm mb-1">No signals yet</p>
+                    <p class="text-xs text-gray-500">Trading signals will appear here when conditions are met</p>
                 </div>
             `;
         }

@@ -131,10 +131,38 @@
             transition: all 0.2s ease-in-out;
         }
         
-        input[type="range"]::-webkit-slider-thumb:hover {
-            transform: scale(1.1);
-            box-shadow: 0 6px 20px rgba(16, 185, 129, 0.6);
+        .pair-item {
+            transition: all 0.2s ease;
+            cursor: pointer;
         }
+        
+        .pair-item:hover {
+            background: rgba(16, 185, 129, 0.1);
+            border-color: rgba(16, 185, 129, 0.3);
+            transform: translateX(4px);
+        }
+        
+        .pair-item.selected {
+            background: rgba(16, 185, 129, 0.15);
+            border-color: rgba(16, 185, 129, 0.5);
+            box-shadow: 0 0 20px rgba(16, 185, 129, 0.2);
+        }
+        
+        .category-badge {
+            font-size: 10px;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .category-major { background: rgba(34, 197, 94, 0.2); color: #22c55e; }
+        .category-minor { background: rgba(59, 130, 246, 0.2); color: #3b82f6; }
+        .category-crypto { background: rgba(251, 191, 36, 0.2); color: #fbbf24; }
+        .category-commodities { background: rgba(245, 101, 101, 0.2); color: #f56565; }
+        .category-indices { background: rgba(139, 92, 246, 0.2); color: #8b5cf6; }
+        .category-exotic { background: rgba(236, 72, 153, 0.2); color: #ec4899; }
         
         /* Signal indicators with glow effects */
         .signal-active {
@@ -214,6 +242,27 @@
         .btn-premium:active {
             transform: translateY(0);
         }
+        
+        /* Alert notification styles */
+        .alert-item {
+            transition: all 0.3s ease;
+            border-left: 3px solid transparent;
+        }
+        
+        .alert-item:hover {
+            background: rgba(255, 255, 255, 0.05);
+            border-left-color: #10b981;
+        }
+        
+        .alert-buy {
+            border-left-color: #22c55e;
+            background: rgba(34, 197, 94, 0.05);
+        }
+        
+        .alert-sell {
+            border-left-color: #ef4444;
+            background: rgba(239, 68, 68, 0.05);
+        }
     </style>
 </head>
 <body class="bg-gray-950 text-white min-h-screen gradient-bg overflow-x-hidden">
@@ -274,7 +323,7 @@
     <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div class="grid grid-cols-1 xl:grid-cols-4 gap-8">
             <!-- Left Column - MT5 Account & Trading Pairs -->
-            <div class="space-y-8">
+            <div class="space-y-6">
                 <!-- Enhanced MT5 Connection & Account -->
                 <div class="trading-card glass-dark rounded-2xl p-6 border border-white/10">
                     <div class="flex items-center justify-between mb-6">
@@ -377,88 +426,207 @@
                     </div>
                 </div>
 
-                <!-- Enhanced Pair Selector -->
-                <div class="trading-card glass-dark rounded-2xl p-6 border border-white/10">
-                    <div class="flex items-center justify-between mb-6">
-                        <div class="flex items-center space-x-3">
-                            <div class="p-2 bg-blue-500/20 rounded-lg">
-                                <i data-lucide="bar-chart-3" class="w-5 h-5 text-blue-400"></i>
+                <!-- Enhanced Trading Pairs Panel -->
+                <div class="trading-card glass-dark rounded-2xl border border-white/10 overflow-hidden">
+                    <!-- Header -->
+                    <div class="p-4 border-b border-white/10">
+                        <div class="flex items-center justify-between mb-4">
+                            <div class="flex items-center space-x-3">
+                                <div class="p-2 bg-blue-500/20 rounded-lg">
+                                    <i data-lucide="bar-chart-3" class="w-5 h-5 text-blue-400"></i>
+                                </div>
+                                <h2 class="text-lg font-bold text-white">Trading Pairs</h2>
                             </div>
-                            <h2 class="text-xl font-bold text-white">Trading Pairs</h2>
+                            <div id="pairs-count" class="px-3 py-1 bg-gray-700/50 text-gray-300 rounded-lg text-xs font-medium">1104 pairs</div>
                         </div>
-                        <div id="pairs-count" class="px-3 py-1 bg-gray-700/50 text-gray-300 rounded-lg text-sm">Loading...</div>
-                    </div>
-                    
-                    <!-- Enhanced Search and Filters -->
-                    <div class="space-y-4">
-                        <div class="relative">
+                        
+                        <!-- Search Bar -->
+                        <div class="relative mb-4">
                             <input 
                                 type="text" 
                                 id="pair-search" 
                                 placeholder="Search trading pairs..." 
-                                class="w-full px-4 py-3 pl-12 glass rounded-xl text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all"
+                                class="w-full px-4 py-2.5 pl-10 glass rounded-lg text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary-500 transition-all text-sm"
                             >
-                            <i data-lucide="search" class="absolute left-4 top-3.5 w-5 h-5 text-gray-400"></i>
+                            <i data-lucide="search" class="absolute left-3 top-3 w-4 h-4 text-gray-400"></i>
                         </div>
                         
-                        <!-- Category Filters with Enhanced Design -->
-                        <div class="flex flex-wrap gap-2">
-                            <button class="category-filter active px-4 py-2 text-sm rounded-lg bg-primary-500 text-white font-medium transition-all" data-category="all">All</button>
-                            <button class="category-filter px-4 py-2 text-sm rounded-lg glass text-gray-300 hover:bg-white/10 transition-all" data-category="major">Major</button>
-                            <button class="category-filter px-4 py-2 text-sm rounded-lg glass text-gray-300 hover:bg-white/10 transition-all" data-category="minor">Minor</button>
-                            <button class="category-filter px-4 py-2 text-sm rounded-lg glass text-gray-300 hover:bg-white/10 transition-all" data-category="crypto">Crypto</button>
-                            <button class="category-filter px-4 py-2 text-sm rounded-lg glass text-gray-300 hover:bg-white/10 transition-all" data-category="commodities">Commodities</button>
+                        <!-- Category Filters -->
+                        <div class="flex flex-wrap gap-1.5">
+                            <button class="category-filter active px-3 py-1.5 text-xs rounded-md bg-primary-500 text-white font-medium transition-all" data-category="all">All</button>
+                            <button class="category-filter px-3 py-1.5 text-xs rounded-md glass text-gray-300 hover:bg-white/10 transition-all" data-category="major">Major</button>
+                            <button class="category-filter px-3 py-1.5 text-xs rounded-md glass text-gray-300 hover:bg-white/10 transition-all" data-category="minor">Minor</button>
+                            <button class="category-filter px-3 py-1.5 text-xs rounded-md glass text-gray-300 hover:bg-white/10 transition-all" data-category="crypto">Crypto</button>
+                            <button class="category-filter px-3 py-1.5 text-xs rounded-md glass text-gray-300 hover:bg-white/10 transition-all" data-category="commodities">Commodities</button>
+                        </div>
+                    </div>
+                    
+                    <!-- Pairs List -->
+                    <div id="pairs-list" class="max-h-80 overflow-y-auto custom-scrollbar">
+                        <!-- Sample pairs - will be populated by JavaScript -->
+                        <div class="pair-item p-3 border-b border-white/5 hover:bg-white/5 cursor-pointer transition-all" data-symbol="XAUUSD">
+                            <div class="flex items-center justify-between">
+                                <div class="flex-1">
+                                    <div class="flex items-center space-x-2 mb-1">
+                                        <span class="text-white font-medium text-sm">XAUUSD</span>
+                                        <span class="category-badge category-commodities">COMMODITIES</span>
+                                    </div>
+                                    <div class="text-gray-400 text-xs">Gold vs US Dollar</div>
+                                </div>
+                                <div class="text-right">
+                                    <div class="text-white font-medium text-sm">$2,045.67</div>
+                                    <div class="text-green-400 text-xs">+0.12%</div>
+                                </div>
+                            </div>
                         </div>
                         
-                        <!-- Enhanced Pair Selector -->
-                        <select id="pair-selector" class="w-full px-4 py-3 glass rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-primary-500 custom-scrollbar transition-all" size="6">
-                            <option value="" disabled>Connecting to MT5...</option>
-                        </select>
+                        <div class="pair-item p-3 border-b border-white/5 hover:bg-white/5 cursor-pointer transition-all" data-symbol="XPTUSD">
+                            <div class="flex items-center justify-between">
+                                <div class="flex-1">
+                                    <div class="flex items-center space-x-2 mb-1">
+                                        <span class="text-white font-medium text-sm">XPTUSD</span>
+                                        <span class="category-badge category-commodities">COMMODITIES</span>
+                                    </div>
+                                    <div class="text-gray-400 text-xs">Platinum vs US Dollar</div>
+                                </div>
+                                <div class="text-right">
+                                    <div class="text-white font-medium text-sm">$945.23</div>
+                                    <div class="text-red-400 text-xs">-0.08%</div>
+                                </div>
+                            </div>
+                        </div>
                         
-                        <!-- Selected Pair Info -->
-                        <div id="selected-pair-info" class="glass rounded-xl p-4 hidden animate-fade-in">
-                            <h4 class="text-white font-medium mb-3">Pair Details</h4>
-                            <div class="space-y-2 text-sm">
-                                <div class="flex justify-between">
-                                    <span class="text-gray-400">Digits:</span>
-                                    <span id="pair-digits" class="text-white font-medium">5</span>
+                        <div class="pair-item p-3 border-b border-white/5 hover:bg-white/5 cursor-pointer transition-all" data-symbol="XPDUSD">
+                            <div class="flex items-center justify-between">
+                                <div class="flex-1">
+                                    <div class="flex items-center space-x-2 mb-1">
+                                        <span class="text-white font-medium text-sm">XPDUSD</span>
+                                        <span class="category-badge category-commodities">COMMODITIES</span>
+                                    </div>
+                                    <div class="text-gray-400 text-xs">Palladium vs US Dollar</div>
                                 </div>
-                                <div class="flex justify-between">
-                                    <span class="text-gray-400">Min Lot:</span>
-                                    <span id="pair-min-lot" class="text-white font-medium">0.01</span>
+                                <div class="text-right">
+                                    <div class="text-white font-medium text-sm">$1,234.56</div>
+                                    <div class="text-green-400 text-xs">+0.25%</div>
                                 </div>
-                                <div class="flex justify-between">
-                                    <span class="text-gray-400">Spread:</span>
-                                    <span id="pair-spread" class="text-yellow-400 font-medium">1.5 pips</span>
+                            </div>
+                        </div>
+                        
+                        <div class="pair-item p-3 border-b border-white/5 hover:bg-white/5 cursor-pointer transition-all" data-symbol="XAGUSD">
+                            <div class="flex items-center justify-between">
+                                <div class="flex-1">
+                                    <div class="flex items-center space-x-2 mb-1">
+                                        <span class="text-white font-medium text-sm">XAGUSD</span>
+                                        <span class="category-badge category-commodities">COMMODITIES</span>
+                                    </div>
+                                    <div class="text-gray-400 text-xs">Silver vs US Dollar</div>
                                 </div>
-                                <div class="flex justify-between">
-                                    <span class="text-gray-400">Category:</span>
-                                    <span id="pair-category" class="text-blue-400 font-medium">Major</span>
+                                <div class="text-right">
+                                    <div class="text-white font-medium text-sm">$24.78</div>
+                                    <div class="text-green-400 text-xs">+0.18%</div>
                                 </div>
+                            </div>
+                        </div>
+                        
+                        <div class="pair-item p-3 border-b border-white/5 hover:bg-white/5 cursor-pointer transition-all" data-symbol="ZECUSD">
+                            <div class="flex items-center justify-between">
+                                <div class="flex-1">
+                                    <div class="flex items-center space-x-2 mb-1">
+                                        <span class="text-white font-medium text-sm">ZECUSD</span>
+                                        <span class="category-badge category-crypto">CRYPTO</span>
+                                    </div>
+                                    <div class="text-gray-400 text-xs">Zcash vs US Dollar</div>
+                                </div>
+                                <div class="text-right">
+                                    <div class="text-white font-medium text-sm">$45.67</div>
+                                    <div class="text-red-400 text-xs">-1.23%</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="pair-item p-3 border-b border-white/5 hover:bg-white/5 cursor-pointer transition-all" data-symbol="ALGOUSD">
+                            <div class="flex items-center justify-between">
+                                <div class="flex-1">
+                                    <div class="flex items-center space-x-2 mb-1">
+                                        <span class="text-white font-medium text-sm">ALGOUSD</span>
+                                        <span class="category-badge category-crypto">CRYPTO</span>
+                                    </div>
+                                    <div class="text-gray-400 text-xs">Algorand vs US Dollar</div>
+                                </div>
+                                <div class="text-right">
+                                    <div class="text-white font-medium text-sm">$0.234</div>
+                                    <div class="text-green-400 text-xs">+2.45%</div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="pair-item p-3 border-b border-white/5 hover:bg-white/5 cursor-pointer transition-all" data-symbol="XTZUSD">
+                            <div class="flex items-center justify-between">
+                                <div class="flex-1">
+                                    <div class="flex items-center space-x-2 mb-1">
+                                        <span class="text-white font-medium text-sm">XTZUSD</span>
+                                        <span class="category-badge category-crypto">CRYPTO</span>
+                                    </div>
+                                    <div class="text-gray-400 text-xs">Tezos vs US Dollar</div>
+                                </div>
+                                <div class="text-right">
+                                    <div class="text-white font-medium text-sm">$1.23</div>
+                                    <div class="text-green-400 text-xs">+0.89%</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Pair Details Footer -->
+                    <div id="selected-pair-info" class="p-4 border-t border-white/10 bg-gray-800/30">
+                        <h4 class="text-white font-medium mb-3 text-sm">Pair Details</h4>
+                        <div class="grid grid-cols-2 gap-3 text-xs">
+                            <div class="flex justify-between">
+                                <span class="text-gray-400">Digits:</span>
+                                <span id="pair-digits" class="text-white font-medium">5</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-400">Min Lot:</span>
+                                <span id="pair-min-lot" class="text-white font-medium">0.01</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-400">Spread:</span>
+                                <span id="pair-spread" class="text-yellow-400 font-medium">1.5 pips</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-400">Category:</span>
+                                <span id="pair-category" class="text-blue-400 font-medium">Major</span>
                             </div>
                         </div>
                     </div>
                 </div>
 
-                <!-- Enhanced Trading Alerts -->
-                <div class="trading-card glass-dark rounded-2xl p-6 border border-white/10">
-                    <div class="flex items-center justify-between mb-6">
-                        <div class="flex items-center space-x-3">
-                            <div class="p-2 bg-yellow-500/20 rounded-lg">
-                                <i data-lucide="bell" class="w-5 h-5 text-yellow-400"></i>
+                <!-- Enhanced Trading Alerts Panel -->
+                <div class="trading-card glass-dark rounded-2xl border border-white/10 overflow-hidden">
+                    <!-- Header -->
+                    <div class="p-4 border-b border-white/10">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center space-x-3">
+                                <div class="p-2 bg-yellow-500/20 rounded-lg">
+                                    <i data-lucide="bell" class="w-5 h-5 text-yellow-400"></i>
+                                </div>
+                                <h2 class="text-lg font-bold text-white">Trading Alerts</h2>
                             </div>
-                            <h2 class="text-xl font-bold text-white">Trading Alerts</h2>
+                            <button id="clear-alerts" class="p-2 rounded-lg glass hover:bg-white/10 text-gray-300 hover:text-white transition-all">
+                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                            </button>
                         </div>
-                        <button id="clear-alerts" class="p-2 rounded-lg glass hover:bg-white/10 text-gray-300 hover:text-white transition-all">
-                            <i data-lucide="trash-2" class="w-4 h-4"></i>
-                        </button>
                     </div>
                     
-                    <div id="alerts-content" class="space-y-3 max-h-64 overflow-y-auto custom-scrollbar">
-                        <div class="text-center text-gray-400 py-8">
-                            <i data-lucide="bell" class="w-12 h-12 mx-auto mb-3 opacity-50"></i>
-                            <p class="font-medium">No signals yet</p>
-                            <p class="text-sm">Trading signals will appear here when conditions are met</p>
+                    <!-- Alerts Content -->
+                    <div id="alerts-content" class="max-h-64 overflow-y-auto custom-scrollbar">
+                        <!-- No signals state -->
+                        <div class="text-center text-gray-400 py-8 px-4">
+                            <div class="w-12 h-12 mx-auto mb-3 rounded-full bg-gray-800/50 flex items-center justify-center">
+                                <i data-lucide="bell" class="w-6 h-6 opacity-50"></i>
+                            </div>
+                            <p class="font-medium text-sm mb-1">No signals yet</p>
+                            <p class="text-xs text-gray-500">Trading signals will appear here when conditions are met</p>
                         </div>
                     </div>
                 </div>
