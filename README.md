@@ -1,0 +1,1 @@
+supertrend-pro-mt5
