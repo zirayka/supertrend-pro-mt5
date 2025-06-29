@@ -3,7 +3,7 @@
 import logging
 from datetime import datetime
 from typing import List, Optional
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Header
 from fastapi.responses import JSONResponse
 
 from src.core.models import (

@@ -175,7 +175,7 @@ def main():
             print("❌ No available ports found. Please close other applications using ports 3000-3010")
             print("\n💡 Common solutions:")
             print("   - Close any running web servers")
-            print("   - Check Task Manager for applications using port 3000-8000")
+            print("   - Check Task Manager for applications using ports 3000-8000")
             print("   - Try running as Administrator")
             sys.exit(1)
     
