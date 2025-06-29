@@ -5,8 +5,7 @@
   "main": "main.py",
   "scripts": {
     "start": "python run.py",
-    "dev": "python main.py",
-    "install": "pip install -r requirements.txt"
+    "dev": "python run.py"
   },
   "keywords": [
     "trading",
