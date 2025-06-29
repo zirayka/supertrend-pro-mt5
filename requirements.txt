@@ -16,3 +16,4 @@ watchdog==3.0.0
 pydantic==2.5.2
 pydantic-settings==2.1.0
 python-dotenv==1.0.0
+MetaTrader5==5.0.45

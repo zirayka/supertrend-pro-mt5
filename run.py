@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 SuperTrend Pro MT5 - Development Server
-Quick start script for development with enhanced error handling
+Quick start script with MetaTrader5 integration
 """
 
 import os
@@ -34,7 +34,9 @@ def check_requirements():
         import uvicorn
         import pandas
         import numpy
+        import MetaTrader5
         print("✅ All requirements are installed")
+        print("✅ MetaTrader5 package is available")
         return True
     except ImportError as e:
         print(f"❌ Missing requirement: {e}")
@@ -47,6 +49,33 @@ def check_requirements():
         except subprocess.CalledProcessError:
             print("❌ Failed to install requirements")
             return False
+
+def check_mt5_installation():
+    """Check if MT5 is properly installed and accessible"""
+    try:
+        import MetaTrader5 as mt5
+        
+        # Try to initialize MT5 (this will fail if MT5 is not running, but that's OK)
+        if mt5.initialize():
+            print("✅ MT5 Terminal is running and accessible")
+            account_info = mt5.account_info()
+            if account_info:
+                print(f"📊 Connected to account: {account_info.login} on {account_info.server}")
+                print(f"💰 Balance: ${account_info.balance:.2f}")
+            mt5.shutdown()
+            return True
+        else:
+            print("⚠️ MT5 Terminal is not running (this is OK for development)")
+            print("💡 To connect to live MT5 data:")
+            print("   1. Start MetaTrader 5 Terminal")
+            print("   2. Log into your trading account")
+            print("   3. Restart this application")
+            return True
+            
+    except Exception as e:
+        print(f"⚠️ MT5 check failed: {e}")
+        print("💡 This is normal if MT5 is not installed or running")
+        return True
 
 def create_directories():
     """Create necessary directories"""
@@ -80,18 +109,35 @@ HOST={host}
 PORT={port}
 DEBUG=true
 LOG_LEVEL=INFO
+
+# MT5 Connection Settings
+MT5_WEBSOCKET_URL=ws://localhost:8765
+MT5_FILE_SERVER_URL=http://localhost:3001
+MT5_FILES_PATH=
+
+# SuperTrend Default Settings
+DEFAULT_ATR_PERIOD=20
+DEFAULT_MULTIPLIER=2.0
+DEFAULT_RSI_PERIOD=14
+
+# Data Settings
+MAX_CANDLES=1000
+UPDATE_INTERVAL=1.0
 """
             env_file.write_text(env_content)
             print(f"✅ Basic environment file created with port {port}")
 
 def main():
-    """Main function with enhanced error handling"""
+    """Main function with enhanced MT5 integration"""
     print("🚀 SuperTrend Pro MT5 - Python Trading Dashboard")
-    print("=" * 50)
+    print("=" * 60)
     
     # Check and install requirements
     if not check_requirements():
         sys.exit(1)
+    
+    # Check MT5 installation and connection
+    check_mt5_installation()
     
     # Create directories
     create_directories()
@@ -136,11 +182,23 @@ def main():
     print(f"\n🎯 Starting SuperTrend Pro MT5 Dashboard...")
     print(f"📊 Dashboard will be available at: http://{host}:{port}")
     print(f"📚 API documentation at: http://{host}:{port}/api/docs")
+    print("\n💡 Features:")
+    print("   ✅ Direct MT5 Terminal integration via MetaTrader5 package")
+    print("   ✅ Real-time tick data and account information")
+    print("   ✅ Advanced SuperTrend indicator calculations")
+    print("   ✅ Multiple connection methods (Direct, WebSocket, File-based)")
+    print("   ✅ Live trading capabilities (when connected to MT5)")
+    print("\n🔗 Connection Methods:")
+    print("   1. Direct MT5 (Recommended) - Uses MetaTrader5 Python package")
+    print("   2. WebSocket - Real-time data via WebSocket server")
+    print("   3. File-based - Reads data from MT5 Expert Advisor files")
+    print("   4. Demo Mode - Simulated data for testing")
     print("\n💡 Tips:")
-    print("   - Ensure MT5 Terminal is running for live data")
-    print("   - Check MT5 connection guide in docs/ folder")
+    print("   - For live data: Start MT5 Terminal and log into your account")
+    print("   - Check connection status in the dashboard")
+    print("   - Use API endpoints for programmatic access")
     print("   - Press Ctrl+C to stop the server")
-    print("\n" + "=" * 50)
+    print("\n" + "=" * 60)
     
     try:
         # Import and run the application
