@@ -7,7 +7,7 @@ import { TrendAnalysis } from './components/TrendAnalysis';
 import { AlertPanel } from './components/AlertPanel';
 import { PairSelector } from './components/PairSelector';
 import { MT5Status } from './components/MT5Status';
-import { ConnectionTester } from './components/ConnectionTester';
+import { ConnectionTesterPanel } from './components/ConnectionTesterPanel';
 import { MarketData, SuperTrendConfig, SuperTrendResult, TradingSignal, CurrencyPair, MT5Connection, MT5Tick } from './types/trading';
 import { BarChart3, Play, Pause, RotateCcw, Settings, TestTube } from 'lucide-react';
 
@@ -311,7 +311,7 @@ function App() {
             />
             
             {showTester && (
-              <ConnectionTester />
+              <ConnectionTesterPanel />
             )}
             
             {showSettings && (

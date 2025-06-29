@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { ConnectionTester } from '../utils/connectionTester';
 import { Wifi, WifiOff, Play, Square, RefreshCw, CheckCircle, XCircle, AlertCircle, Monitor } from 'lucide-react';
 
-export const ConnectionTester: React.FC = () => {
+export const ConnectionTesterPanel: React.FC = () => {
   const [tester] = useState(() => new ConnectionTester());
   const [testResults, setTestResults] = useState<any>(null);
   const [isRunning, setIsRunning] = useState(false);
