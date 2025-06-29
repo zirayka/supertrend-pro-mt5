@@ -1,6 +1,6 @@
 """
 Enhanced MT5 direct connection using MetaTrader5 Python package
-Fixed version with proper initialization and symbol loading
+Fixed version with robust symbol loading and fallback mechanisms
 """
 
 import asyncio
@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 
 class MT5DirectConnection:
-    """Enhanced direct connection to MT5 Terminal using MetaTrader5 package"""
+    """Enhanced direct connection to MT5 Terminal with robust symbol loading"""
     
     def __init__(self):
         self.is_connected = False
@@ -35,7 +35,7 @@ class MT5DirectConnection:
         self.retry_delay = 5
         
     async def initialize(self) -> bool:
-        """Initialize connection to MT5 Terminal with proper error handling"""
+        """Initialize connection to MT5 Terminal with enhanced symbol loading"""
         try:
             logger.info("🔌 Initializing MT5 direct connection...")
             
@@ -71,8 +71,8 @@ class MT5DirectConnection:
             
             self.is_connected = True
             
-            # Load available symbols
-            await self._load_symbols()
+            # Load available symbols with multiple attempts
+            await self._load_symbols_with_retry()
             
             logger.info("✅ MT5 direct connection established successfully")
             logger.info(f"📊 Account: {self.connection_info['login']} on {self.connection_info['server']}")
@@ -86,31 +86,82 @@ class MT5DirectConnection:
             logger.error(f"❌ Error initializing MT5 connection: {e}")
             return False
     
-    async def _load_symbols(self):
-        """Load available trading symbols from MT5"""
-        try:
-            logger.info("📈 Loading trading symbols from MT5...")
+    async def _load_symbols_with_retry(self):
+        """Load symbols with multiple retry attempts and fallback strategies"""
+        max_attempts = 3
+        
+        for attempt in range(max_attempts):
+            logger.info(f"📈 Loading trading symbols from MT5 (attempt {attempt + 1}/{max_attempts})...")
             
-            # Get all symbols
-            symbols = mt5.symbols_get()
-            if symbols is None:
-                logger.warning("⚠️ No symbols available from MT5")
-                # Try to get symbols from market watch
-                symbols = mt5.symbols_get(group="*")
-                if symbols is None:
-                    logger.error("❌ Cannot load any symbols from MT5")
+            try:
+                # Method 1: Get all symbols
+                symbols = mt5.symbols_get()
+                if symbols and len(symbols) > 0:
+                    logger.info(f"✅ Method 1: Found {len(symbols)} symbols using symbols_get()")
+                    await self._process_symbols(symbols)
+                    if len(self.available_symbols) > 0:
+                        return
+                
+                # Method 2: Get symbols by group
+                logger.info("🔄 Method 2: Trying symbols_get() with groups...")
+                for group in ["*", "Forex*", "Major*", "EUR*", "USD*", "GBP*"]:
+                    symbols = mt5.symbols_get(group=group)
+                    if symbols and len(symbols) > 0:
+                        logger.info(f"✅ Method 2: Found {len(symbols)} symbols using group '{group}'")
+                        await self._process_symbols(symbols)
+                        if len(self.available_symbols) > 0:
+                            return
+                
+                # Method 3: Get symbols from market watch
+                logger.info("🔄 Method 3: Trying to get symbols from market watch...")
+                symbols_total = mt5.symbols_total()
+                logger.info(f"📊 Total symbols available: {symbols_total}")
+                
+                if symbols_total > 0:
+                    # Try to get symbols one by one
+                    for i in range(min(symbols_total, 100)):  # Limit to first 100
+                        symbol_name = mt5.symbol_name(i)
+                        if symbol_name:
+                            symbol_info = mt5.symbol_info(symbol_name)
+                            if symbol_info:
+                                await self._process_single_symbol(symbol_info)
+                
+                if len(self.available_symbols) > 0:
+                    logger.info(f"✅ Method 3: Loaded {len(self.available_symbols)} symbols from market watch")
                     return
-            
-            self.available_symbols = []
-            symbol_categories = {
-                'major': 0, 'minor': 0, 'exotic': 0, 'crypto': 0, 
-                'commodities': 0, 'indices': 0, 'other': 0
-            }
-            
-            # Process symbols
-            for symbol in symbols:
-                # Include both visible and market watch symbols
-                if symbol.visible or symbol.select:
+                
+                # Method 4: Try common symbols manually
+                logger.info("🔄 Method 4: Trying common symbols manually...")
+                await self._load_common_symbols()
+                if len(self.available_symbols) > 0:
+                    return
+                
+                # Wait before retry
+                if attempt < max_attempts - 1:
+                    logger.warning(f"⚠️ Attempt {attempt + 1} failed, retrying in 2 seconds...")
+                    await asyncio.sleep(2)
+                
+            except Exception as e:
+                logger.error(f"❌ Error in symbol loading attempt {attempt + 1}: {e}")
+                if attempt < max_attempts - 1:
+                    await asyncio.sleep(2)
+        
+        # Final fallback: Create default symbols
+        logger.warning("⚠️ All symbol loading methods failed, creating fallback symbols...")
+        self._create_fallback_symbols()
+    
+    async def _process_symbols(self, symbols):
+        """Process a list of symbols from MT5"""
+        self.available_symbols = []
+        symbol_categories = {
+            'major': 0, 'minor': 0, 'exotic': 0, 'crypto': 0, 
+            'commodities': 0, 'indices': 0, 'other': 0
+        }
+        
+        for symbol in symbols:
+            try:
+                # Include visible symbols or try to select them
+                if symbol.visible or self._try_select_symbol(symbol.name):
                     category = self._categorize_symbol(symbol.name)
                     symbol_categories[category] += 1
                     
@@ -130,59 +181,108 @@ class MT5DirectConnection:
                         'currency_profit': symbol.currency_profit,
                         'currency_margin': symbol.currency_margin,
                         'visible': symbol.visible,
-                        'select': symbol.select
+                        'select': True
                     }
                     
                     self.available_symbols.append(symbol_info)
-            
-            # If we still have no symbols, add some common ones manually
-            if len(self.available_symbols) == 0:
-                logger.warning("⚠️ No symbols loaded, adding common symbols manually...")
-                common_symbols = ['EURUSD', 'GBPUSD', 'USDJPY', 'USDCHF', 'AUDUSD', 'USDCAD', 'NZDUSD']
+            except Exception as e:
+                logger.debug(f"Error processing symbol {symbol.name}: {e}")
+                continue
+        
+        # Sort symbols by category and name
+        self.available_symbols.sort(key=lambda x: (x['category'], x['symbol']))
+        
+        logger.info(f"✅ Processed {len(self.available_symbols)} trading symbols")
+        logger.info(f"📊 Symbol distribution: {symbol_categories}")
+        
+        # Log first few symbols for debugging
+        if self.available_symbols:
+            logger.info("📋 First 5 symbols loaded:")
+            for i, symbol in enumerate(self.available_symbols[:5]):
+                logger.info(f"   {i+1}. {symbol['symbol']} ({symbol['category']}) - {symbol['description']}")
+    
+    async def _process_single_symbol(self, symbol_info):
+        """Process a single symbol"""
+        try:
+            if self._try_select_symbol(symbol_info.name):
+                category = self._categorize_symbol(symbol_info.name)
                 
-                for symbol_name in common_symbols:
-                    symbol_info_obj = mt5.symbol_info(symbol_name)
-                    if symbol_info_obj:
-                        # Try to select the symbol
-                        mt5.symbol_select(symbol_name, True)
+                symbol_data = {
+                    'symbol': symbol_info.name,
+                    'description': symbol_info.description or symbol_info.name,
+                    'category': category,
+                    'digits': symbol_info.digits,
+                    'point': symbol_info.point,
+                    'min_lot': symbol_info.volume_min,
+                    'max_lot': symbol_info.volume_max,
+                    'lot_step': symbol_info.volume_step,
+                    'spread': symbol_info.spread,
+                    'swap_long': symbol_info.swap_long,
+                    'swap_short': symbol_info.swap_short,
+                    'currency_base': symbol_info.currency_base,
+                    'currency_profit': symbol_info.currency_profit,
+                    'currency_margin': symbol_info.currency_margin,
+                    'visible': symbol_info.visible,
+                    'select': True
+                }
+                
+                self.available_symbols.append(symbol_data)
+        except Exception as e:
+            logger.debug(f"Error processing single symbol {symbol_info.name}: {e}")
+    
+    def _try_select_symbol(self, symbol_name: str) -> bool:
+        """Try to select a symbol in MT5"""
+        try:
+            return mt5.symbol_select(symbol_name, True)
+        except Exception:
+            return False
+    
+    async def _load_common_symbols(self):
+        """Load common trading symbols manually"""
+        common_symbols = [
+            'EURUSD', 'GBPUSD', 'USDJPY', 'USDCHF', 'AUDUSD', 'USDCAD', 'NZDUSD',
+            'EURGBP', 'EURJPY', 'GBPJPY', 'EURCHF', 'EURAUD', 'EURCAD',
+            'XAUUSD', 'XAGUSD', 'USOIL', 'UKOIL',
+            'US30', 'SPX500', 'NAS100', 'UK100', 'GER30',
+            'BTCUSD', 'ETHUSD'
+        ]
+        
+        self.available_symbols = []
+        
+        for symbol_name in common_symbols:
+            try:
+                # Try to get symbol info
+                symbol_info = mt5.symbol_info(symbol_name)
+                if symbol_info:
+                    # Try to select the symbol
+                    if mt5.symbol_select(symbol_name, True):
+                        category = self._categorize_symbol(symbol_name)
                         
-                        symbol_info = {
+                        symbol_data = {
                             'symbol': symbol_name,
-                            'description': symbol_info_obj.description or symbol_name,
-                            'category': 'major',
-                            'digits': symbol_info_obj.digits,
-                            'point': symbol_info_obj.point,
-                            'min_lot': symbol_info_obj.volume_min,
-                            'max_lot': symbol_info_obj.volume_max,
-                            'lot_step': symbol_info_obj.volume_step,
-                            'spread': symbol_info_obj.spread,
-                            'swap_long': symbol_info_obj.swap_long,
-                            'swap_short': symbol_info_obj.swap_short,
-                            'currency_base': symbol_info_obj.currency_base,
-                            'currency_profit': symbol_info_obj.currency_profit,
-                            'currency_margin': symbol_info_obj.currency_margin,
+                            'description': symbol_info.description or symbol_name,
+                            'category': category,
+                            'digits': symbol_info.digits,
+                            'point': symbol_info.point,
+                            'min_lot': symbol_info.volume_min,
+                            'max_lot': symbol_info.volume_max,
+                            'lot_step': symbol_info.volume_step,
+                            'spread': symbol_info.spread,
+                            'swap_long': symbol_info.swap_long,
+                            'swap_short': symbol_info.swap_short,
+                            'currency_base': symbol_info.currency_base,
+                            'currency_profit': symbol_info.currency_profit,
+                            'currency_margin': symbol_info.currency_margin,
                             'visible': True,
                             'select': True
                         }
-                        self.available_symbols.append(symbol_info)
-                        symbol_categories['major'] += 1
-            
-            # Sort symbols by category and name
-            self.available_symbols.sort(key=lambda x: (x['category'], x['symbol']))
-            
-            logger.info(f"✅ Loaded {len(self.available_symbols)} trading symbols")
-            logger.info(f"📊 Symbol distribution: {symbol_categories}")
-            
-            # Log first few symbols for debugging
-            if self.available_symbols:
-                logger.info("📋 First 5 symbols loaded:")
-                for i, symbol in enumerate(self.available_symbols[:5]):
-                    logger.info(f"   {i+1}. {symbol['symbol']} ({symbol['category']}) - {symbol['description']}")
-            
-        except Exception as e:
-            logger.error(f"❌ Error loading symbols: {e}")
-            # Create fallback symbols
-            self._create_fallback_symbols()
+                        self.available_symbols.append(symbol_data)
+                        logger.info(f"✅ Added symbol: {symbol_name}")
+            except Exception as e:
+                logger.debug(f"Could not load symbol {symbol_name}: {e}")
+                continue
+        
+        logger.info(f"✅ Loaded {len(self.available_symbols)} common symbols manually")
     
     def _create_fallback_symbols(self):
         """Create fallback symbols when MT5 symbols cannot be loaded"""
@@ -196,8 +296,16 @@ class MT5DirectConnection:
             {'symbol': 'AUDUSD', 'description': 'Australian Dollar vs US Dollar', 'category': 'major'},
             {'symbol': 'USDCAD', 'description': 'US Dollar vs Canadian Dollar', 'category': 'major'},
             {'symbol': 'NZDUSD', 'description': 'New Zealand Dollar vs US Dollar', 'category': 'major'},
+            {'symbol': 'EURGBP', 'description': 'Euro vs British Pound', 'category': 'minor'},
+            {'symbol': 'EURJPY', 'description': 'Euro vs Japanese Yen', 'category': 'minor'},
+            {'symbol': 'GBPJPY', 'description': 'British Pound vs Japanese Yen', 'category': 'minor'},
             {'symbol': 'XAUUSD', 'description': 'Gold vs US Dollar', 'category': 'commodities'},
             {'symbol': 'XAGUSD', 'description': 'Silver vs US Dollar', 'category': 'commodities'},
+            {'symbol': 'BTCUSD', 'description': 'Bitcoin vs US Dollar', 'category': 'crypto'},
+            {'symbol': 'ETHUSD', 'description': 'Ethereum vs US Dollar', 'category': 'crypto'},
+            {'symbol': 'US30', 'description': 'Dow Jones Industrial Average', 'category': 'indices'},
+            {'symbol': 'SPX500', 'description': 'S&P 500 Index', 'category': 'indices'},
+            {'symbol': 'NAS100', 'description': 'NASDAQ 100 Index', 'category': 'indices'},
         ]
         
         self.available_symbols = []
@@ -214,7 +322,7 @@ class MT5DirectConnection:
                 'spread': 2.0,
                 'swap_long': -1.0,
                 'swap_short': 0.5,
-                'currency_base': symbol_data['symbol'][:3],
+                'currency_base': symbol_data['symbol'][:3] if len(symbol_data['symbol']) >= 3 else 'USD',
                 'currency_profit': symbol_data['symbol'][3:6] if len(symbol_data['symbol']) >= 6 else 'USD',
                 'currency_margin': symbol_data['symbol'][3:6] if len(symbol_data['symbol']) >= 6 else 'USD',
                 'visible': True,
@@ -234,23 +342,23 @@ class MT5DirectConnection:
             return 'major'
         
         # Minor forex pairs
-        minor_pairs = ['EURGBP', 'EURJPY', 'GBPJPY', 'EURCHF', 'EURAUD', 'EURCAD', 'GBPCHF', 'GBPAUD']
+        minor_pairs = ['EURGBP', 'EURJPY', 'GBPJPY', 'EURCHF', 'EURAUD', 'EURCAD', 'GBPCHF', 'GBPAUD', 'AUDCAD', 'AUDCHF', 'AUDJPY', 'AUDNZD', 'CADCHF', 'CADJPY', 'CHFJPY', 'GBPAUD', 'GBPCAD', 'GBPCHF', 'GBPNZD', 'NZDCAD', 'NZDCHF', 'NZDJPY']
         if symbol_upper in minor_pairs:
             return 'minor'
         
         # Commodities
-        if any(commodity in symbol_upper for commodity in ['XAU', 'XAG', 'GOLD', 'SILVER', 'OIL', 'WTI', 'BRENT']):
+        if any(commodity in symbol_upper for commodity in ['XAU', 'XAG', 'GOLD', 'SILVER', 'OIL', 'WTI', 'BRENT', 'USOIL', 'UKOIL']):
             return 'commodities'
         
         # Indices
-        if any(index in symbol_upper for index in ['US30', 'SPX500', 'NAS100', 'UK100', 'GER30', 'FRA40', 'JPN225']):
+        if any(index in symbol_upper for index in ['US30', 'SPX500', 'NAS100', 'UK100', 'GER30', 'FRA40', 'JPN225', 'AUS200', 'HK50', 'CHINA50']):
             return 'indices'
         
         # Cryptocurrencies
-        if any(crypto in symbol_upper for crypto in ['BTC', 'ETH', 'LTC', 'XRP', 'ADA', 'DOT']):
+        if any(crypto in symbol_upper for crypto in ['BTC', 'ETH', 'LTC', 'XRP', 'ADA', 'DOT', 'LINK', 'BCH', 'EOS', 'TRX']):
             return 'crypto'
         
-        # Exotic forex pairs
+        # Exotic forex pairs (6-character currency pairs not in major/minor)
         if len(symbol) == 6 and symbol.isalpha():
             return 'exotic'
         
@@ -291,27 +399,36 @@ class MT5DirectConnection:
             )
     
     async def get_available_pairs(self) -> List[CurrencyPair]:
-        """Get available currency pairs"""
+        """Get available currency pairs with enhanced error handling"""
         if not self.is_connected:
             logger.warning("⚠️ MT5 not connected, returning empty pairs list")
             return []
         
+        # If no symbols loaded, try to reload them
+        if not self.available_symbols:
+            logger.info("🔄 No symbols available, attempting to reload...")
+            await self._load_symbols_with_retry()
+        
         pairs = []
         for symbol_info in self.available_symbols:
-            pair = CurrencyPair(
-                symbol=symbol_info['symbol'],
-                name=symbol_info['description'],
-                category=symbol_info['category'],
-                digits=symbol_info['digits'],
-                point_size=symbol_info['point'],
-                min_lot=symbol_info['min_lot'],
-                max_lot=symbol_info['max_lot'],
-                lot_step=symbol_info['lot_step'],
-                spread=symbol_info.get('spread'),
-                swap_long=symbol_info.get('swap_long'),
-                swap_short=symbol_info.get('swap_short')
-            )
-            pairs.append(pair)
+            try:
+                pair = CurrencyPair(
+                    symbol=symbol_info['symbol'],
+                    name=symbol_info['description'],
+                    category=symbol_info['category'],
+                    digits=symbol_info['digits'],
+                    point_size=symbol_info['point'],
+                    min_lot=symbol_info['min_lot'],
+                    max_lot=symbol_info['max_lot'],
+                    lot_step=symbol_info['lot_step'],
+                    spread=symbol_info.get('spread'),
+                    swap_long=symbol_info.get('swap_long'),
+                    swap_short=symbol_info.get('swap_short')
+                )
+                pairs.append(pair)
+            except Exception as e:
+                logger.error(f"❌ Error creating pair for {symbol_info['symbol']}: {e}")
+                continue
         
         logger.info(f"📊 Returning {len(pairs)} currency pairs")
         return pairs
@@ -489,13 +606,12 @@ class MT5DirectConnection:
                     self.account_info = account_info._asdict()
                     await self._notify_subscribers('account_info', self.account_info)
                 
-                # Get tick data for major pairs
-                major_symbols = ['EURUSD', 'GBPUSD', 'USDJPY', 'XAUUSD']
-                for symbol in major_symbols:
-                    if any(s['symbol'] == symbol for s in self.available_symbols):
-                        tick = await self.get_current_tick(symbol)
-                        if tick:
-                            await self._notify_subscribers('tick', tick.dict())
+                # Get tick data for available symbols (first few)
+                available_symbols = [s['symbol'] for s in self.available_symbols[:5]]  # First 5 symbols
+                for symbol in available_symbols:
+                    tick = await self.get_current_tick(symbol)
+                    if tick:
+                        await self._notify_subscribers('tick', tick.dict())
                 
                 # Get positions and orders
                 positions = await self.get_positions()

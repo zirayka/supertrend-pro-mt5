@@ -1,4 +1,4 @@
-"""API routes for the application with direct MT5 integration only"""
+"""API routes for the application with direct MT5 integration only - Enhanced pairs loading"""
 
 import logging
 from datetime import datetime
@@ -58,16 +58,53 @@ async def get_connection_status(mt5: MT5ConnectionManager = Depends(get_mt5_mana
 
 @api_router.get("/pairs", response_model=List[CurrencyPair])
 async def get_currency_pairs(mt5: MT5ConnectionManager = Depends(get_mt5_manager)):
-    """Get available currency pairs from MT5 account"""
+    """Get available currency pairs from MT5 account with enhanced loading"""
     try:
+        logger.info("📊 API: Getting currency pairs...")
+        
+        # Get pairs from MT5 manager
         pairs = await mt5.get_available_pairs()
+        
         if not pairs:
-            logger.warning("No trading pairs available from MT5")
-            return []
+            logger.warning("⚠️ No trading pairs available from MT5, attempting force reload...")
+            
+            # Try to force reload pairs
+            pairs = await mt5.force_reload_pairs()
+            
+            if not pairs:
+                logger.error("❌ Still no pairs available after force reload")
+                # Return empty list instead of raising exception
+                return []
+        
+        logger.info(f"✅ API: Returning {len(pairs)} trading pairs")
         return pairs
+        
     except Exception as e:
-        logger.error(f"Error getting currency pairs: {e}")
+        logger.error(f"❌ Error getting currency pairs: {e}")
         return []
+
+@api_router.get("/pairs/reload")
+async def reload_currency_pairs(mt5: MT5ConnectionManager = Depends(get_mt5_manager)):
+    """Force reload currency pairs from MT5"""
+    try:
+        logger.info("🔄 API: Force reloading currency pairs...")
+        pairs = await mt5.force_reload_pairs()
+        
+        return {
+            "status": "success",
+            "message": f"Reloaded {len(pairs)} trading pairs",
+            "pairs_count": len(pairs),
+            "timestamp": datetime.now().isoformat()
+        }
+        
+    except Exception as e:
+        logger.error(f"❌ Error reloading currency pairs: {e}")
+        return {
+            "status": "error",
+            "message": str(e),
+            "pairs_count": 0,
+            "timestamp": datetime.now().isoformat()
+        }
 
 @api_router.get("/tick")
 async def get_current_tick(
@@ -225,7 +262,7 @@ async def calculate_supertrend(
 
 @api_router.post("/test-connection")
 async def test_connection(mt5: MT5ConnectionManager = Depends(get_mt5_manager)):
-    """Test MT5 direct connection"""
+    """Test MT5 direct connection with enhanced pairs testing"""
     try:
         connection = await mt5.get_connection_status()
         
@@ -247,19 +284,26 @@ async def test_connection(mt5: MT5ConnectionManager = Depends(get_mt5_manager)):
         # Additional tests for direct connection
         if connection.is_connected:
             try:
-                # Test getting tick data
-                tick = await mt5.get_current_tick("EURUSD")
-                test_results["tick_data"] = {
-                    "success": tick is not None,
-                    "message": f"Tick data available for EURUSD: {tick.bid}/{tick.ask}" if tick else "No tick data"
-                }
-                
                 # Test getting pairs
                 pairs = await mt5.get_available_pairs()
                 test_results["pairs_data"] = {
                     "success": len(pairs) > 0,
                     "message": f"Available trading pairs: {len(pairs)}"
                 }
+                
+                # Test getting tick data
+                if pairs:
+                    test_symbol = pairs[0].symbol
+                    tick = await mt5.get_current_tick(test_symbol)
+                    test_results["tick_data"] = {
+                        "success": tick is not None,
+                        "message": f"Tick data available for {test_symbol}: {tick.bid}/{tick.ask}" if tick else f"No tick data for {test_symbol}"
+                    }
+                else:
+                    test_results["tick_data"] = {
+                        "success": False,
+                        "message": "No symbols available for tick test"
+                    }
                 
                 # Test getting positions
                 positions = await mt5.get_positions()
