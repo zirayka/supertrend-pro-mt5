@@ -6,7 +6,8 @@ export class MT5FileReader {
   private lastFileModifications: Map<string, number> = new Map();
   private isActive = false;
   private consecutiveErrors = 0;
-  private maxConsecutiveErrors = 5;
+  private maxConsecutiveErrors = 10; // Increased tolerance
+  private lastSuccessfulRead: Map<string, number> = new Map();
 
   constructor(private checkInterval: number = 2000) {
     // Detect if running in WebContainer environment
@@ -58,7 +59,9 @@ export class MT5FileReader {
       
     } catch (error) {
       this.consecutiveErrors++;
-      console.error(`Error checking MT5 files (${this.consecutiveErrors}/${this.maxConsecutiveErrors}):`, error);
+      if (this.consecutiveErrors <= 3) { // Only log first few errors
+        console.warn(`⚠️ Error checking MT5 files (${this.consecutiveErrors}/${this.maxConsecutiveErrors}):`, error);
+      }
       
       // Stop monitoring if too many consecutive errors
       if (this.consecutiveErrors >= this.maxConsecutiveErrors) {
@@ -85,13 +88,12 @@ export class MT5FileReader {
             'Pragma': 'no-cache',
             'Expires': '0'
           },
-          signal: AbortSignal.timeout(5000) // 5 second timeout
+          signal: AbortSignal.timeout(5000)
         });
         
         if (response.ok) {
           const contentType = response.headers.get('content-type');
           if (!contentType || !contentType.includes('application/json')) {
-            console.warn(`⚠️ Expected JSON but got ${contentType} from ${filePath}`);
             continue;
           }
 
@@ -102,39 +104,29 @@ export class MT5FileReader {
             const text = await response.text();
             
             if (!text || text.trim().length === 0) {
-              console.warn('⚠️ Received empty tick data file');
               continue;
             }
             
-            // Handle both single JSON object and newline-separated JSON
-            const lines = text.trim().split('\n');
-            const lastLine = lines[lines.length - 1];
-            
-            try {
-              const data = JSON.parse(lastLine);
-              if (data && data.type === 'TICK' && data.data) {
-                const tick: MT5Tick = {
-                  symbol: data.data.symbol,
-                  time: data.data.time * 1000, // Convert to milliseconds
-                  bid: data.data.bid,
-                  ask: data.data.ask,
-                  last: data.data.last,
-                  volume: data.data.volume,
-                  flags: data.data.flags || 0
-                };
-                
-                console.log(`📊 Tick data received for ${tick.symbol}: ${tick.last}`);
-                this.notifySubscribers('tick', tick);
-              }
-            } catch (parseError) {
-              console.warn('Failed to parse tick data JSON:', parseError);
-              console.warn('Raw data:', lastLine.substring(0, 100) + '...');
+            const parsedData = this.parseJSONSafely(text, 'tick data');
+            if (parsedData && parsedData.type === 'TICK' && parsedData.data) {
+              const tick: MT5Tick = {
+                symbol: parsedData.data.symbol,
+                time: parsedData.data.time * 1000,
+                bid: parsedData.data.bid,
+                ask: parsedData.data.ask,
+                last: parsedData.data.last,
+                volume: parsedData.data.volume,
+                flags: parsedData.data.flags || 0
+              };
+              
+              console.log(`📊 Tick data received for ${tick.symbol}: ${tick.last}`);
+              this.notifySubscribers('tick', tick);
+              this.lastSuccessfulRead.set(fileKey, Date.now());
             }
           }
-          break; // Found working path
+          break;
         }
       } catch (error) {
-        // Try next path
         continue;
       }
     }
@@ -176,27 +168,21 @@ export class MT5FileReader {
               continue;
             }
             
-            const lines = text.trim().split('\n');
-            const lastLine = lines[lines.length - 1];
-            
-            try {
-              const data = JSON.parse(lastLine);
-              if (data && data.type === 'OHLC' && data.data) {
-                const ohlc: MarketData = {
-                  timestamp: data.data.timestamp * 1000,
-                  open: data.data.open,
-                  high: data.data.high,
-                  low: data.data.low,
-                  close: data.data.close,
-                  volume: data.data.volume,
-                  symbol: data.data.symbol
-                };
-                
-                console.log(`📈 OHLC data received for ${ohlc.symbol}: ${ohlc.close}`);
-                this.notifySubscribers('ohlc', ohlc);
-              }
-            } catch (parseError) {
-              console.warn('Failed to parse OHLC data JSON:', parseError);
+            const parsedData = this.parseJSONSafely(text, 'OHLC data');
+            if (parsedData && parsedData.type === 'OHLC' && parsedData.data) {
+              const ohlc: MarketData = {
+                timestamp: parsedData.data.timestamp * 1000,
+                open: parsedData.data.open,
+                high: parsedData.data.high,
+                low: parsedData.data.low,
+                close: parsedData.data.close,
+                volume: parsedData.data.volume,
+                symbol: parsedData.data.symbol
+              };
+              
+              console.log(`📈 OHLC data received for ${ohlc.symbol}: ${ohlc.close}`);
+              this.notifySubscribers('ohlc', ohlc);
+              this.lastSuccessfulRead.set(fileKey, Date.now());
             }
           }
           break;
@@ -243,29 +229,23 @@ export class MT5FileReader {
               continue;
             }
             
-            const lines = text.trim().split('\n');
-            const lastLine = lines[lines.length - 1];
-            
-            try {
-              const data = JSON.parse(lastLine);
-              if (data && data.type === 'ACCOUNT_INFO' && data.data) {
-                const connection: MT5Connection = {
-                  isConnected: true,
-                  server: data.data.server,
-                  account: data.data.account,
-                  balance: data.data.balance,
-                  equity: data.data.equity,
-                  margin: data.data.margin,
-                  freeMargin: data.data.freeMargin,
-                  marginLevel: data.data.marginLevel,
-                  lastUpdate: Date.now()
-                };
-                
-                console.log(`💰 Account info received: Balance $${connection.balance}`);
-                this.notifySubscribers('connection', connection);
-              }
-            } catch (parseError) {
-              console.warn('Failed to parse account info JSON:', parseError);
+            const parsedData = this.parseJSONSafely(text, 'account info');
+            if (parsedData && parsedData.type === 'ACCOUNT_INFO' && parsedData.data) {
+              const connection: MT5Connection = {
+                isConnected: true,
+                server: parsedData.data.server,
+                account: parsedData.data.account,
+                balance: parsedData.data.balance,
+                equity: parsedData.data.equity,
+                margin: parsedData.data.margin,
+                freeMargin: parsedData.data.freeMargin,
+                marginLevel: parsedData.data.marginLevel,
+                lastUpdate: Date.now()
+              };
+              
+              console.log(`💰 Account info received: Balance $${connection.balance}`);
+              this.notifySubscribers('connection', connection);
+              this.lastSuccessfulRead.set(fileKey, Date.now());
             }
           }
           break;
@@ -312,29 +292,23 @@ export class MT5FileReader {
               continue;
             }
             
-            const lines = text.trim().split('\n');
-            const lastLine = lines[lines.length - 1];
-            
-            try {
-              const data = JSON.parse(lastLine);
-              if (data && data.type === 'SYMBOLS' && data.data) {
-                const symbols: CurrencyPair[] = data.data.map((symbol: any) => ({
-                  symbol: symbol.name,
-                  name: symbol.description || symbol.name,
-                  category: this.categorizeSymbol(symbol.name),
-                  digits: symbol.digits,
-                  pointSize: Math.pow(10, -symbol.digits),
-                  minLot: symbol.volume_min,
-                  maxLot: symbol.volume_max,
-                  lotStep: symbol.volume_step,
-                  spread: symbol.spread
-                }));
-                
-                console.log(`📋 Symbols list received: ${symbols.length} symbols`);
-                this.notifySubscribers('symbols', symbols);
-              }
-            } catch (parseError) {
-              console.warn('Failed to parse symbols list JSON:', parseError);
+            const parsedData = this.parseJSONSafely(text, 'symbols list');
+            if (parsedData && parsedData.type === 'SYMBOLS' && parsedData.data) {
+              const symbols: CurrencyPair[] = parsedData.data.map((symbol: any) => ({
+                symbol: symbol.name,
+                name: symbol.description || symbol.name,
+                category: this.categorizeSymbol(symbol.name),
+                digits: symbol.digits,
+                pointSize: Math.pow(10, -symbol.digits),
+                minLot: symbol.volume_min,
+                maxLot: symbol.volume_max,
+                lotStep: symbol.volume_step,
+                spread: symbol.spread
+              }));
+              
+              console.log(`📋 Symbols list received: ${symbols.length} symbols`);
+              this.notifySubscribers('symbols', symbols);
+              this.lastSuccessfulRead.set(fileKey, Date.now());
             }
           }
           break;
@@ -342,6 +316,40 @@ export class MT5FileReader {
       } catch (error) {
         continue;
       }
+    }
+  }
+
+  private parseJSONSafely(text: string, dataType: string): any {
+    try {
+      // Handle both single JSON object and newline-separated JSON
+      const lines = text.trim().split('\n');
+      
+      // Try parsing the last line first (most recent data)
+      for (let i = lines.length - 1; i >= 0; i--) {
+        const line = lines[i].trim();
+        if (line.length === 0) continue;
+        
+        try {
+          const parsed = JSON.parse(line);
+          if (parsed && typeof parsed === 'object') {
+            return parsed;
+          }
+        } catch (lineError) {
+          // Try next line
+          continue;
+        }
+      }
+      
+      // If no line worked, try parsing the entire text
+      return JSON.parse(text);
+      
+    } catch (error) {
+      // Only log parsing errors occasionally to avoid spam
+      if (Math.random() < 0.1) { // 10% chance to log
+        console.warn(`⚠️ Failed to parse ${dataType} JSON:`, error);
+        console.warn(`Raw data preview:`, text.substring(0, 100) + (text.length > 100 ? '...' : ''));
+      }
+      return null;
     }
   }
 
@@ -447,6 +455,24 @@ export class MT5FileReader {
         ? `Found ${foundFiles.length} MT5 data files`
         : 'No MT5 data files accessible. Make sure the MT5 file server is running on port 3001.',
       foundFiles
+    };
+  }
+
+  // Get connection statistics
+  getConnectionStats(): {
+    isActive: boolean;
+    consecutiveErrors: number;
+    lastSuccessfulReads: { [key: string]: number };
+  } {
+    const lastReads: { [key: string]: number } = {};
+    this.lastSuccessfulRead.forEach((time, key) => {
+      lastReads[key] = time;
+    });
+
+    return {
+      isActive: this.isActive,
+      consecutiveErrors: this.consecutiveErrors,
+      lastSuccessfulReads: lastReads
     };
   }
 }
