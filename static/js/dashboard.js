@@ -1,15 +1,15 @@
 /**
- * SuperTrend Pro MT5 Dashboard - Enhanced Real-time JavaScript
- * Fixed price formatting and optimized for minimal delay
+ * SuperTrend Pro MT5 Dashboard - Final Optimized Real-time JavaScript
+ * Ultra-fast updates with minimal delay and enhanced performance
  */
 
 class SuperTrendDashboard {
     constructor() {
-        // Real-time optimization settings
-        this.updateInterval = 1000; // Optimized to 1 second for better balance
-        this.fastTickInterval = 500; // Fast tick updates
-        this.reconnectDelay = 2000; // Quick reconnection
-        this.maxRetries = 10;
+        // Ultra-optimized settings for minimal delay
+        this.updateInterval = 500; // Ultra-fast 500ms updates
+        this.fastTickInterval = 250; // Super fast tick updates
+        this.reconnectDelay = 1000; // Very quick reconnection
+        this.maxRetries = 15;
         this.retryCount = 0;
         
         // WebSocket connection for real-time data
@@ -17,7 +17,7 @@ class SuperTrendDashboard {
         this.wsReconnectTimer = null;
         this.isConnected = false;
         
-        // Data management
+        // Data management with caching
         this.currentData = {
             connection: { is_connected: false, connection_type: 'connecting' },
             pairs: [],
@@ -31,6 +31,7 @@ class SuperTrendDashboard {
         // Chart instance
         this.chart = null;
         this.chartData = [];
+        this.maxChartPoints = 50; // Reduced for better performance
         
         // UI state
         this.selectedPair = 'EURUSD';
@@ -40,34 +41,40 @@ class SuperTrendDashboard {
         // Performance monitoring
         this.updateTimes = [];
         this.avgUpdateTime = 0;
+        this.lastTickTime = 0;
         
-        // Price formatting cache
+        // Enhanced price formatting cache
         this.priceFormatCache = new Map();
+        this.formatCacheSize = 500; // Limit cache size
+        
+        // Update throttling
+        this.lastUIUpdate = 0;
+        this.uiUpdateThrottle = 100; // Minimum 100ms between UI updates
         
         // Initialize dashboard
         this.init();
     }
     
     async init() {
-        console.log('🚀 Initializing SuperTrend Pro MT5 Dashboard - Optimized Version');
+        console.log('🚀 Initializing SuperTrend Pro MT5 Dashboard - Ultra-Optimized Version');
         
         try {
             // Setup event listeners first
             this.setupEventListeners();
             
-            // Initialize chart
+            // Initialize chart with optimized settings
             this.initializeChart();
             
-            // Start WebSocket connection
+            // Start WebSocket connection immediately
             this.connectWebSocket();
             
-            // Start optimized data polling as backup
-            this.startOptimizedPolling();
+            // Start ultra-fast data polling as backup
+            this.startUltraFastPolling();
             
             // Load initial data immediately
             await this.loadInitialData();
             
-            console.log('✅ Dashboard initialized successfully');
+            console.log('✅ Dashboard initialized with ultra-fast updates');
             
         } catch (error) {
             console.error('❌ Error initializing dashboard:', error);
@@ -85,7 +92,7 @@ class SuperTrendDashboard {
             this.ws = new WebSocket(wsUrl);
             
             this.ws.onopen = () => {
-                console.log('✅ WebSocket connected');
+                console.log('✅ WebSocket connected - Ultra-fast mode enabled');
                 this.isConnected = true;
                 this.retryCount = 0;
                 
@@ -103,19 +110,19 @@ class SuperTrendDashboard {
                     const message = JSON.parse(event.data);
                     this.handleWebSocketMessage(message);
                 } catch (error) {
-                    console.error('❌ Error parsing WebSocket message:', error);
+                    console.debug('WebSocket message parse error:', error);
                 }
             };
             
             this.ws.onclose = () => {
-                console.log('🔌 WebSocket disconnected');
+                console.log('🔌 WebSocket disconnected - switching to polling mode');
                 this.isConnected = false;
                 this.updateConnectionStatus(false);
                 this.scheduleReconnect();
             };
             
             this.ws.onerror = (error) => {
-                console.error('❌ WebSocket error:', error);
+                console.debug('WebSocket error:', error);
                 this.isConnected = false;
                 this.updateConnectionStatus(false);
             };
@@ -129,15 +136,13 @@ class SuperTrendDashboard {
     scheduleReconnect() {
         if (this.retryCount < this.maxRetries) {
             this.retryCount++;
-            const delay = Math.min(this.reconnectDelay * this.retryCount, 10000);
+            const delay = Math.min(this.reconnectDelay * Math.min(this.retryCount, 3), 5000);
             
             console.log(`🔄 Scheduling WebSocket reconnect in ${delay}ms (attempt ${this.retryCount})`);
             
             this.wsReconnectTimer = setTimeout(() => {
                 this.connectWebSocket();
             }, delay);
-        } else {
-            console.error('❌ Max WebSocket reconnection attempts reached');
         }
     }
     
@@ -170,8 +175,6 @@ class SuperTrendDashboard {
                 case 'connection_status':
                     this.updateConnectionStatus(message.data.is_connected);
                     break;
-                default:
-                    console.log('📨 Unknown WebSocket message type:', message.type);
             }
             
             // Track update performance
@@ -179,12 +182,19 @@ class SuperTrendDashboard {
             this.trackUpdatePerformance(updateTime);
             
         } catch (error) {
-            console.error('❌ Error handling WebSocket message:', error);
+            console.debug('Error handling WebSocket message:', error);
         }
     }
     
     handleTickUpdate(tickData) {
         if (!tickData || !tickData.symbol) return;
+        
+        // Throttle UI updates for better performance
+        const now = performance.now();
+        if (now - this.lastUIUpdate < this.uiUpdateThrottle) {
+            return;
+        }
+        this.lastUIUpdate = now;
         
         this.currentData.tick = tickData;
         
@@ -229,14 +239,14 @@ class SuperTrendDashboard {
         this.updateSupertrendDisplay();
     }
     
-    startOptimizedPolling() {
-        // Fast tick polling for critical price updates
+    startUltraFastPolling() {
+        // Ultra-fast tick polling for critical price updates
         setInterval(async () => {
             if (!this.isConnected && this.isRunning) {
                 try {
                     await this.fetchTickData();
                 } catch (error) {
-                    console.debug('Tick fetch error (normal if WebSocket is working):', error.message);
+                    // Silent fail for polling
                 }
             }
         }, this.fastTickInterval);
@@ -245,12 +255,32 @@ class SuperTrendDashboard {
         setInterval(async () => {
             if (this.isRunning) {
                 try {
-                    await this.fetchAllData();
+                    // Fetch data concurrently for better performance
+                    const promises = [
+                        this.fetchConnectionStatus(),
+                        this.fetchAccountData(),
+                        this.fetchSupertrendData()
+                    ];
+                    
+                    // Don't wait for all to complete, process as they come
+                    Promise.allSettled(promises);
+                    
                 } catch (error) {
-                    console.debug('Data fetch error:', error.message);
+                    // Silent fail for polling
                 }
             }
         }, this.updateInterval);
+        
+        // Slower polling for pairs (they don't change often)
+        setInterval(async () => {
+            if (this.isRunning && this.currentData.pairs.length === 0) {
+                try {
+                    await this.fetchPairsData();
+                } catch (error) {
+                    // Silent fail
+                }
+            }
+        }, 5000);
     }
     
     async fetchTickData() {
@@ -267,22 +297,7 @@ class SuperTrendDashboard {
                 }
             }
         } catch (error) {
-            throw new Error(`Tick fetch failed: ${error.message}`);
-        }
-    }
-    
-    async fetchAllData() {
-        const promises = [
-            this.fetchConnectionStatus(),
-            this.fetchAccountData(),
-            this.fetchPairsData(),
-            this.fetchSupertrendData()
-        ];
-        
-        try {
-            await Promise.allSettled(promises);
-        } catch (error) {
-            console.debug('Some data fetch operations failed:', error);
+            // Silent fail for polling
         }
     }
     
@@ -294,7 +309,7 @@ class SuperTrendDashboard {
                 this.handleConnectionUpdate(data);
             }
         } catch (error) {
-            console.debug('Connection status fetch failed:', error.message);
+            // Silent fail
         }
     }
     
@@ -314,7 +329,7 @@ class SuperTrendDashboard {
                 }
             }
         } catch (error) {
-            console.debug('Account data fetch failed:', error.message);
+            // Silent fail
         }
     }
     
@@ -326,7 +341,7 @@ class SuperTrendDashboard {
                 this.handleSymbolsUpdate(pairs);
             }
         } catch (error) {
-            console.debug('Pairs data fetch failed:', error.message);
+            // Silent fail
         }
     }
     
@@ -348,44 +363,42 @@ class SuperTrendDashboard {
                 }
             }
         } catch (error) {
-            console.debug('SuperTrend data fetch failed:', error.message);
+            // Silent fail
         }
     }
     
-    // Enhanced price formatting with caching
+    // Enhanced price formatting with optimized caching
     formatPrice(price, symbol = null) {
         if (typeof price !== 'number' || isNaN(price)) return '0.00000';
         
-        const cacheKey = `${price}_${symbol}`;
+        const cacheKey = `${price.toFixed(8)}_${symbol}`;
         if (this.priceFormatCache.has(cacheKey)) {
             return this.priceFormatCache.get(cacheKey);
         }
         
         let formatted;
         
-        // Determine decimal places based on symbol and price range
+        // Optimized decimal places logic
         if (symbol && symbol.includes('JPY')) {
-            formatted = price.toFixed(3); // JPY pairs typically use 3 decimals
-        } else if (price > 1000) {
-            // For crypto or indices with high values
-            formatted = price.toFixed(2);
-        } else if (price > 100) {
             formatted = price.toFixed(3);
-        } else if (price > 10) {
+        } else if (price > 10000) {
+            formatted = price.toFixed(2);
+        } else if (price > 1000) {
+            formatted = price.toFixed(3);
+        } else if (price > 100) {
             formatted = price.toFixed(4);
         } else {
-            formatted = price.toFixed(5); // Standard forex pairs
+            formatted = price.toFixed(5);
         }
         
-        // Cache the result
+        // Optimized cache management
+        if (this.priceFormatCache.size >= this.formatCacheSize) {
+            // Clear oldest entries
+            const keysToDelete = Array.from(this.priceFormatCache.keys()).slice(0, 100);
+            keysToDelete.forEach(key => this.priceFormatCache.delete(key));
+        }
+        
         this.priceFormatCache.set(cacheKey, formatted);
-        
-        // Limit cache size
-        if (this.priceFormatCache.size > 1000) {
-            const firstKey = this.priceFormatCache.keys().next().value;
-            this.priceFormatCache.delete(firstKey);
-        }
-        
         return formatted;
     }
     
@@ -402,170 +415,304 @@ class SuperTrendDashboard {
         // Use the most appropriate price for display
         const displayPrice = tickData.last || tickData.bid || tickData.ask || 0;
         
-        if (elements.currentPrice && displayPrice) {
-            elements.currentPrice.textContent = this.formatPrice(displayPrice, this.selectedPair);
-        }
-        
-        if (elements.bidPrice && tickData.bid) {
-            elements.bidPrice.textContent = this.formatPrice(tickData.bid, this.selectedPair);
-        }
-        
-        if (elements.askPrice && tickData.ask) {
-            elements.askPrice.textContent = this.formatPrice(tickData.ask, this.selectedPair);
-        }
-        
-        if (elements.spread && tickData.bid && tickData.ask) {
-            const spread = Math.abs(tickData.ask - tickData.bid);
-            const pips = this.calculatePips(spread, this.selectedPair);
-            elements.spread.textContent = `${pips.toFixed(1)} pips`;
-        }
-        
-        if (elements.volume && tickData.volume) {
-            elements.volume.textContent = this.formatVolume(tickData.volume);
-        }
-        
-        // Update price change (simplified - would need historical data for accurate calculation)
-        if (elements.priceChange) {
-            const changeIcon = elements.priceChange.querySelector('i');
-            const changeText = elements.priceChange.querySelector('span');
-            
-            if (changeIcon && changeText) {
-                // Calculate change based on previous price if available
-                const prevPrice = this.chartData.length > 0 ? this.chartData[this.chartData.length - 1].y : displayPrice;
-                const change = displayPrice - prevPrice;
-                const changePercent = prevPrice > 0 ? (change / prevPrice) * 100 : 0;
-                
-                const sign = change >= 0 ? '+' : '';
-                changeText.textContent = `${sign}${change.toFixed(4)} (${sign}${changePercent.toFixed(2)}%)`;
-                
-                if (change >= 0) {
-                    changeIcon.setAttribute('data-lucide', 'trending-up');
-                    elements.priceChange.className = 'flex items-center justify-end text-primary-500 text-sm';
-                } else {
-                    changeIcon.setAttribute('data-lucide', 'trending-down');
-                    elements.priceChange.className = 'flex items-center justify-end text-red-500 text-sm';
-                }
-                
-                // Refresh icons
-                if (window.lucide) {
-                    window.lucide.createIcons();
-                }
+        // Batch DOM updates for better performance
+        requestAnimationFrame(() => {
+            if (elements.currentPrice && displayPrice) {
+                elements.currentPrice.textContent = this.formatPrice(displayPrice, this.selectedPair);
             }
+            
+            if (elements.bidPrice && tickData.bid) {
+                elements.bidPrice.textContent = this.formatPrice(tickData.bid, this.selectedPair);
+            }
+            
+            if (elements.askPrice && tickData.ask) {
+                elements.askPrice.textContent = this.formatPrice(tickData.ask, this.selectedPair);
+            }
+            
+            if (elements.spread && tickData.bid && tickData.ask) {
+                const spread = Math.abs(tickData.ask - tickData.bid);
+                const pips = this.calculatePips(spread, this.selectedPair);
+                elements.spread.textContent = `${pips.toFixed(1)} pips`;
+            }
+            
+            if (elements.volume && tickData.volume) {
+                elements.volume.textContent = this.formatVolume(tickData.volume);
+            }
+            
+            // Update price change with animation
+            if (elements.priceChange) {
+                this.updatePriceChange(elements.priceChange, displayPrice);
+            }
+        });
+    }
+    
+    updatePriceChange(element, currentPrice) {
+        const changeIcon = element.querySelector('i');
+        const changeText = element.querySelector('span');
+        
+        if (changeIcon && changeText) {
+            // Calculate change based on previous price
+            const prevPrice = this.chartData.length > 1 ? 
+                this.chartData[this.chartData.length - 2].y : currentPrice;
+            const change = currentPrice - prevPrice;
+            const changePercent = prevPrice > 0 ? (change / prevPrice) * 100 : 0;
+            
+            const sign = change >= 0 ? '+' : '';
+            changeText.textContent = `${sign}${change.toFixed(4)} (${sign}${changePercent.toFixed(2)}%)`;
+            
+            // Animate color change
+            if (change >= 0) {
+                changeIcon.setAttribute('data-lucide', 'trending-up');
+                element.className = 'flex items-center justify-end text-primary-500 text-sm transition-colors duration-300';
+            } else {
+                changeIcon.setAttribute('data-lucide', 'trending-down');
+                element.className = 'flex items-center justify-end text-red-500 text-sm transition-colors duration-300';
+            }
+            
+            // Refresh icons efficiently
+            if (window.lucide) {
+                window.lucide.createIcons();
+            }
+        }
+    }
+    
+    updateChart(tickData) {
+        if (!this.chart || !tickData) return;
+        
+        try {
+            const now = Date.now();
+            const price = tickData.last || tickData.bid || tickData.ask || 0;
+            
+            // Throttle chart updates for performance
+            if (now - this.lastTickTime < 200) { // Max 5 updates per second
+                return;
+            }
+            this.lastTickTime = now;
+            
+            // Add new data point
+            this.chartData.push({
+                x: now,
+                y: price
+            });
+            
+            // Keep only recent points for performance
+            if (this.chartData.length > this.maxChartPoints) {
+                this.chartData = this.chartData.slice(-this.maxChartPoints);
+            }
+            
+            // Update chart with minimal animation
+            this.chart.data.datasets[0].data = this.chartData;
+            this.chart.update('none'); // No animation for fastest updates
+            
+        } catch (error) {
+            console.debug('Chart update error:', error);
+        }
+    }
+    
+    initializeChart() {
+        const ctx = document.getElementById('price-chart');
+        if (!ctx) return;
+        
+        try {
+            this.chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    datasets: [{
+                        label: 'Price',
+                        data: this.chartData,
+                        borderColor: '#10b981',
+                        backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                        borderWidth: 2,
+                        fill: true,
+                        tension: 0.2,
+                        pointRadius: 0,
+                        pointHoverRadius: 3
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    animation: false, // Disable all animations for maximum performance
+                    interaction: {
+                        intersect: false,
+                        mode: 'index'
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            enabled: true,
+                            mode: 'index',
+                            intersect: false,
+                            animation: false, // Disable tooltip animations
+                            callbacks: {
+                                label: (context) => {
+                                    return `Price: ${this.formatPrice(context.parsed.y, this.selectedPair)}`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            type: 'time',
+                            display: true,
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.1)'
+                            },
+                            ticks: {
+                                color: '#9ca3af',
+                                maxTicksLimit: 5
+                            }
+                        },
+                        y: {
+                            display: true,
+                            grid: {
+                                color: 'rgba(255, 255, 255, 0.1)'
+                            },
+                            ticks: {
+                                color: '#9ca3af',
+                                callback: (value) => {
+                                    return this.formatPrice(value, this.selectedPair);
+                                }
+                            }
+                        }
+                    },
+                    // Performance optimizations
+                    parsing: false,
+                    normalized: true,
+                    spanGaps: true
+                }
+            });
+            
+            console.log('✅ Chart initialized with ultra-fast settings');
+            
+        } catch (error) {
+            console.error('❌ Error initializing chart:', error);
         }
     }
     
     updateConnectionDisplay() {
         const connection = this.currentData.connection;
         
-        // Update main connection status
-        const statusElement = document.getElementById('connection-status');
-        const typeElement = document.getElementById('connection-type-badge');
-        
-        if (statusElement) {
-            const dot = statusElement.querySelector('.w-2.h-2');
-            const icon = statusElement.querySelector('i');
-            const text = statusElement.querySelector('span');
+        // Batch DOM updates
+        requestAnimationFrame(() => {
+            // Update main connection status
+            const statusElement = document.getElementById('connection-status');
+            const typeElement = document.getElementById('connection-type-badge');
             
-            if (connection.is_connected) {
-                statusElement.className = 'flex items-center px-3 py-1.5 rounded-full glass border border-green-500/30';
-                if (dot) dot.className = 'w-2 h-2 bg-green-500 rounded-full mr-2';
-                if (icon) icon.setAttribute('data-lucide', 'wifi');
-                if (text) {
-                    text.textContent = `Connected to ${connection.server || 'MT5'}`;
-                    text.className = 'text-green-400 font-medium text-sm';
+            if (statusElement) {
+                const dot = statusElement.querySelector('.w-2.h-2');
+                const icon = statusElement.querySelector('i');
+                const text = statusElement.querySelector('span');
+                
+                if (connection.is_connected) {
+                    statusElement.className = 'flex items-center px-3 py-1.5 rounded-full glass border border-green-500/30 transition-all duration-300';
+                    if (dot) dot.className = 'w-2 h-2 bg-green-500 rounded-full mr-2';
+                    if (icon) icon.setAttribute('data-lucide', 'wifi');
+                    if (text) {
+                        text.textContent = `Connected to ${connection.server || 'MT5'}`;
+                        text.className = 'text-green-400 font-medium text-sm';
+                    }
+                } else {
+                    statusElement.className = 'flex items-center px-3 py-1.5 rounded-full glass border border-red-500/30 connection-pulse';
+                    if (dot) dot.className = 'w-2 h-2 bg-red-500 rounded-full mr-2 animate-pulse';
+                    if (icon) icon.setAttribute('data-lucide', 'wifi-off');
+                    if (text) {
+                        text.textContent = 'Connecting to MT5...';
+                        text.className = 'text-red-400 font-medium text-sm';
+                    }
                 }
-            } else {
-                statusElement.className = 'flex items-center px-3 py-1.5 rounded-full glass border border-red-500/30 connection-pulse';
-                if (dot) dot.className = 'w-2 h-2 bg-red-500 rounded-full mr-2 animate-pulse';
-                if (icon) icon.setAttribute('data-lucide', 'wifi-off');
-                if (text) {
-                    text.textContent = 'Connecting to MT5...';
-                    text.className = 'text-red-400 font-medium text-sm';
+                
+                // Refresh icons efficiently
+                if (window.lucide) {
+                    window.lucide.createIcons();
                 }
             }
             
-            // Refresh icons
-            if (window.lucide) {
-                window.lucide.createIcons();
+            if (typeElement) {
+                if (connection.is_connected) {
+                    typeElement.textContent = connection.connection_type === 'direct' ? 'MT5 Live' : 'Connected';
+                    typeElement.className = 'px-3 py-1 rounded-full text-xs font-medium bg-green-500/20 text-green-400 transition-all duration-300';
+                } else {
+                    typeElement.textContent = 'Connecting...';
+                    typeElement.className = 'px-3 py-1 rounded-full text-xs font-medium bg-yellow-500/20 text-yellow-400 transition-all duration-300';
+                }
             }
-        }
-        
-        if (typeElement) {
-            if (connection.is_connected) {
-                typeElement.textContent = connection.connection_type === 'direct' ? 'MT5 Live' : 'Connected';
-                typeElement.className = 'px-3 py-1 rounded-full text-xs font-medium bg-green-500/20 text-green-400';
-            } else {
-                typeElement.textContent = 'Connecting...';
-                typeElement.className = 'px-3 py-1 rounded-full text-xs font-medium bg-yellow-500/20 text-yellow-400';
-            }
-        }
-        
-        // Update detailed connection info
-        this.updateElement('mt5-server', connection.server || 'Connecting...');
-        this.updateElement('mt5-account', connection.account ? connection.account.toString() : '--');
-        this.updateElement('mt5-connection-status', connection.is_connected ? 'Connected' : 'Initializing');
-        
-        // Update mode indicator in footer
-        this.updateElement('mode-indicator', connection.is_connected ? 'MT5 Live' : 'Connecting');
-        this.updateElement('status-indicator', connection.is_connected ? 'Live' : 'Connecting');
+            
+            // Update detailed connection info
+            this.updateElement('mt5-server', connection.server || 'Connecting...');
+            this.updateElement('mt5-account', connection.account ? connection.account.toString() : '--');
+            this.updateElement('mt5-connection-status', connection.is_connected ? 'Connected' : 'Initializing');
+            
+            // Update mode indicator in footer
+            this.updateElement('mode-indicator', connection.is_connected ? 'MT5 Live' : 'Connecting');
+            this.updateElement('status-indicator', connection.is_connected ? 'Live' : 'Connecting');
+        });
     }
     
     updateAccountDisplay() {
         const account = this.currentData.account;
         
-        if (account.balance !== undefined) {
-            this.updateElement('account-balance', this.formatCurrency(account.balance));
-        }
-        
-        if (account.equity !== undefined) {
-            this.updateElement('account-equity', this.formatCurrency(account.equity));
-        }
-        
-        if (account.free_margin !== undefined) {
-            this.updateElement('account-free-margin', this.formatCurrency(account.free_margin));
-        }
-        
-        if (account.margin_level !== undefined) {
-            const marginLevel = Math.min(Math.max(account.margin_level || 0, 0), 100);
-            this.updateElement('margin-level-percent', `${marginLevel.toFixed(1)}%`);
-            
-            const marginBar = document.getElementById('margin-level-bar');
-            if (marginBar) {
-                marginBar.style.width = `${marginLevel}%`;
+        // Batch DOM updates
+        requestAnimationFrame(() => {
+            if (account.balance !== undefined) {
+                this.updateElement('account-balance', this.formatCurrency(account.balance));
             }
-        }
-        
-        // Calculate and display balance change
-        if (account.balance && account.equity) {
-            const change = account.equity - account.balance;
-            const changePercent = account.balance > 0 ? (change / account.balance) * 100 : 0;
             
-            const changeElement = document.getElementById('balance-change');
-            if (changeElement) {
-                const sign = change >= 0 ? '+' : '';
-                changeElement.textContent = `${sign}${changePercent.toFixed(2)}%`;
-                changeElement.className = change >= 0 ? 'text-sm text-green-400' : 'text-sm text-red-400';
+            if (account.equity !== undefined) {
+                this.updateElement('account-equity', this.formatCurrency(account.equity));
             }
-        }
+            
+            if (account.free_margin !== undefined) {
+                this.updateElement('account-free-margin', this.formatCurrency(account.free_margin));
+            }
+            
+            if (account.margin_level !== undefined) {
+                const marginLevel = Math.min(Math.max(account.margin_level || 0, 0), 100);
+                this.updateElement('margin-level-percent', `${marginLevel.toFixed(1)}%`);
+                
+                const marginBar = document.getElementById('margin-level-bar');
+                if (marginBar) {
+                    marginBar.style.width = `${marginLevel}%`;
+                }
+            }
+            
+            // Calculate and display balance change
+            if (account.balance && account.equity) {
+                const change = account.equity - account.balance;
+                const changePercent = account.balance > 0 ? (change / account.balance) * 100 : 0;
+                
+                const changeElement = document.getElementById('balance-change');
+                if (changeElement) {
+                    const sign = change >= 0 ? '+' : '';
+                    changeElement.textContent = `${sign}${changePercent.toFixed(2)}%`;
+                    changeElement.className = change >= 0 ? 'text-sm text-green-400 transition-colors duration-300' : 'text-sm text-red-400 transition-colors duration-300';
+                }
+            }
+        });
     }
     
     updateTradingStats() {
         const positions = this.currentData.positions || [];
         const orders = this.currentData.orders || [];
         
-        this.updateElement('open-positions', positions.length.toString());
-        this.updateElement('pending-orders', orders.length.toString());
-        
-        // Calculate daily P&L
-        const totalProfit = positions.reduce((sum, pos) => sum + (pos.profit || 0), 0);
-        const dailyPnlElement = document.getElementById('daily-pnl');
-        if (dailyPnlElement) {
-            const sign = totalProfit >= 0 ? '+' : '';
-            dailyPnlElement.textContent = `${sign}${this.formatCurrency(totalProfit)}`;
-            dailyPnlElement.className = totalProfit >= 0 ? 
-                'text-2xl font-bold text-primary-500' : 
-                'text-2xl font-bold text-red-500';
-        }
+        // Batch DOM updates
+        requestAnimationFrame(() => {
+            this.updateElement('open-positions', positions.length.toString());
+            this.updateElement('pending-orders', orders.length.toString());
+            
+            // Calculate daily P&L
+            const totalProfit = positions.reduce((sum, pos) => sum + (pos.profit || 0), 0);
+            const dailyPnlElement = document.getElementById('daily-pnl');
+            if (dailyPnlElement) {
+                const sign = totalProfit >= 0 ? '+' : '';
+                dailyPnlElement.textContent = `${sign}${this.formatCurrency(totalProfit)}`;
+                dailyPnlElement.className = totalProfit >= 0 ? 
+                    'text-2xl font-bold text-primary-500 transition-colors duration-300' : 
+                    'text-2xl font-bold text-red-500 transition-colors duration-300';
+            }
+        });
     }
     
     updatePairsList() {
@@ -598,9 +745,15 @@ class SuperTrendDashboard {
         // Limit to first 50 pairs for performance
         const displayPairs = pairs.slice(0, 50);
         
-        pairsListElement.innerHTML = displayPairs.map(pair => `
-            <div class="pair-item p-2 rounded-lg cursor-pointer transition-all duration-200 ${pair.symbol === this.selectedPair ? 'selected' : ''}" 
-                 data-symbol="${pair.symbol}">
+        // Use DocumentFragment for better performance
+        const fragment = document.createDocumentFragment();
+        
+        displayPairs.forEach(pair => {
+            const div = document.createElement('div');
+            div.className = `pair-item p-2 rounded-lg cursor-pointer transition-all duration-200 ${pair.symbol === this.selectedPair ? 'selected' : ''}`;
+            div.dataset.symbol = pair.symbol;
+            
+            div.innerHTML = `
                 <div class="flex items-center justify-between">
                     <div class="flex items-center space-x-2">
                         <span class="font-medium text-white text-sm">${pair.symbol}</span>
@@ -611,8 +764,13 @@ class SuperTrendDashboard {
                     </div>
                 </div>
                 <div class="text-xs text-gray-400 mt-1 truncate">${pair.name}</div>
-            </div>
-        `).join('');
+            `;
+            
+            fragment.appendChild(div);
+        });
+        
+        pairsListElement.innerHTML = '';
+        pairsListElement.appendChild(fragment);
         
         // Re-attach event listeners
         this.attachPairEventListeners();
@@ -627,62 +785,65 @@ class SuperTrendDashboard {
         const supertrend = this.currentData.supertrend;
         if (!supertrend) return;
         
-        // Update trend indicator
-        const trendIndicator = document.getElementById('trend-indicator');
-        if (trendIndicator) {
-            const isBullish = supertrend.trend === 1;
-            const icon = trendIndicator.querySelector('i');
-            const text = trendIndicator.querySelector('span');
-            
-            if (icon) {
-                icon.setAttribute('data-lucide', isBullish ? 'trending-up' : 'trending-down');
+        // Batch DOM updates
+        requestAnimationFrame(() => {
+            // Update trend indicator
+            const trendIndicator = document.getElementById('trend-indicator');
+            if (trendIndicator) {
+                const isBullish = supertrend.trend === 1;
+                const icon = trendIndicator.querySelector('i');
+                const text = trendIndicator.querySelector('span');
+                
+                if (icon) {
+                    icon.setAttribute('data-lucide', isBullish ? 'trending-up' : 'trending-down');
+                }
+                
+                if (text) {
+                    text.textContent = isBullish ? 'BULLISH' : 'BEARISH';
+                }
+                
+                trendIndicator.className = isBullish ? 
+                    'flex items-center px-3 py-1.5 rounded-full gradient-primary text-sm transition-all duration-300' :
+                    'flex items-center px-3 py-1.5 rounded-full gradient-danger text-sm transition-all duration-300';
+                
+                // Refresh icons
+                if (window.lucide) {
+                    window.lucide.createIcons();
+                }
             }
             
-            if (text) {
-                text.textContent = isBullish ? 'BULLISH' : 'BEARISH';
+            // Update trend strength
+            if (supertrend.trend_strength !== undefined) {
+                const strength = Math.min(Math.max(supertrend.trend_strength, 0), 100);
+                this.updateElement('trend-strength-value', `${strength.toFixed(1)}%`);
+                
+                const strengthBar = document.getElementById('trend-strength-bar');
+                if (strengthBar) {
+                    strengthBar.style.width = `${strength}%`;
+                }
             }
             
-            trendIndicator.className = isBullish ? 
-                'flex items-center px-3 py-1.5 rounded-full gradient-primary text-sm' :
-                'flex items-center px-3 py-1.5 rounded-full gradient-danger text-sm';
-            
-            // Refresh icons
-            if (window.lucide) {
-                window.lucide.createIcons();
+            // Update ATR
+            if (supertrend.atr !== undefined) {
+                this.updateElement('atr-value', supertrend.atr.toFixed(5));
             }
-        }
-        
-        // Update trend strength
-        if (supertrend.trend_strength !== undefined) {
-            const strength = Math.min(Math.max(supertrend.trend_strength, 0), 100);
-            this.updateElement('trend-strength-value', `${strength.toFixed(1)}%`);
             
-            const strengthBar = document.getElementById('trend-strength-bar');
-            if (strengthBar) {
-                strengthBar.style.width = `${strength}%`;
+            // Update RSI
+            if (supertrend.rsi !== undefined) {
+                const rsi = Math.min(Math.max(supertrend.rsi, 0), 100);
+                this.updateElement('rsi-value', rsi.toFixed(1));
+                
+                const rsiBar = document.getElementById('rsi-bar');
+                if (rsiBar) {
+                    rsiBar.style.width = `${rsi}%`;
+                }
             }
-        }
-        
-        // Update ATR
-        if (supertrend.atr !== undefined) {
-            this.updateElement('atr-value', supertrend.atr.toFixed(5));
-        }
-        
-        // Update RSI
-        if (supertrend.rsi !== undefined) {
-            const rsi = Math.min(Math.max(supertrend.rsi, 0), 100);
-            this.updateElement('rsi-value', rsi.toFixed(1));
             
-            const rsiBar = document.getElementById('rsi-bar');
-            if (rsiBar) {
-                rsiBar.style.width = `${rsi}%`;
-            }
-        }
-        
-        // Update signals
-        this.updateSignalIndicator('buy-signal-indicator', supertrend.buy_signal);
-        this.updateSignalIndicator('sell-signal-indicator', supertrend.sell_signal);
-        this.updateSignalIndicator('strong-signal-indicator', supertrend.strong_signal);
+            // Update signals
+            this.updateSignalIndicator('buy-signal-indicator', supertrend.buy_signal);
+            this.updateSignalIndicator('sell-signal-indicator', supertrend.sell_signal);
+            this.updateSignalIndicator('strong-signal-indicator', supertrend.strong_signal);
+        });
     }
     
     updateSignalIndicator(elementId, isActive) {
@@ -690,114 +851,9 @@ class SuperTrendDashboard {
         if (!element) return;
         
         if (isActive) {
-            element.className = 'w-4 h-4 rounded-full bg-green-500 signal-active';
+            element.className = 'w-4 h-4 rounded-full bg-green-500 signal-active transition-all duration-300';
         } else {
-            element.className = 'w-4 h-4 rounded-full border-2 border-gray-600';
-        }
-    }
-    
-    updateChart(tickData) {
-        if (!this.chart || !tickData) return;
-        
-        try {
-            const now = new Date();
-            const price = tickData.last || tickData.bid || tickData.ask || 0;
-            
-            // Add new data point
-            this.chartData.push({
-                x: now,
-                y: price
-            });
-            
-            // Keep only last 100 points for performance
-            if (this.chartData.length > 100) {
-                this.chartData = this.chartData.slice(-100);
-            }
-            
-            // Update chart
-            this.chart.data.datasets[0].data = this.chartData;
-            this.chart.update('none'); // Use 'none' mode for fastest updates
-            
-        } catch (error) {
-            console.error('❌ Error updating chart:', error);
-        }
-    }
-    
-    initializeChart() {
-        const ctx = document.getElementById('price-chart');
-        if (!ctx) return;
-        
-        try {
-            this.chart = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    datasets: [{
-                        label: 'Price',
-                        data: this.chartData,
-                        borderColor: '#10b981',
-                        backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                        borderWidth: 2,
-                        fill: true,
-                        tension: 0.1,
-                        pointRadius: 0,
-                        pointHoverRadius: 4
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    animation: false, // Disable animations for better performance
-                    interaction: {
-                        intersect: false,
-                        mode: 'index'
-                    },
-                    plugins: {
-                        legend: {
-                            display: false
-                        },
-                        tooltip: {
-                            enabled: true,
-                            mode: 'index',
-                            intersect: false,
-                            callbacks: {
-                                label: (context) => {
-                                    return `Price: ${this.formatPrice(context.parsed.y, this.selectedPair)}`;
-                                }
-                            }
-                        }
-                    },
-                    scales: {
-                        x: {
-                            type: 'time',
-                            display: true,
-                            grid: {
-                                color: 'rgba(255, 255, 255, 0.1)'
-                            },
-                            ticks: {
-                                color: '#9ca3af',
-                                maxTicksLimit: 6
-                            }
-                        },
-                        y: {
-                            display: true,
-                            grid: {
-                                color: 'rgba(255, 255, 255, 0.1)'
-                            },
-                            ticks: {
-                                color: '#9ca3af',
-                                callback: (value) => {
-                                    return this.formatPrice(value, this.selectedPair);
-                                }
-                            }
-                        }
-                    }
-                }
-            });
-            
-            console.log('✅ Chart initialized successfully');
-            
-        } catch (error) {
-            console.error('❌ Error initializing chart:', error);
+            element.className = 'w-4 h-4 rounded-full border-2 border-gray-600 transition-all duration-300';
         }
     }
     
@@ -826,10 +882,16 @@ class SuperTrendDashboard {
             connectionTestBtn.addEventListener('click', () => this.showConnectionTest());
         }
         
-        // Search functionality
+        // Search functionality with debouncing
         const searchInput = document.getElementById('pair-search');
         if (searchInput) {
-            searchInput.addEventListener('input', (e) => this.filterPairs(e.target.value));
+            let searchTimeout;
+            searchInput.addEventListener('input', (e) => {
+                clearTimeout(searchTimeout);
+                searchTimeout = setTimeout(() => {
+                    this.filterPairs(e.target.value);
+                }, 300);
+            });
         }
         
         // Category filters
@@ -897,7 +959,7 @@ class SuperTrendDashboard {
         this.chartData = [];
         if (this.chart) {
             this.chart.data.datasets[0].data = [];
-            this.chart.update();
+            this.chart.update('none');
         }
         
         // Fetch new data immediately
@@ -909,14 +971,18 @@ class SuperTrendDashboard {
         console.log('📊 Loading initial dashboard data...');
         
         try {
-            // Load all data in parallel for faster startup
-            await Promise.allSettled([
+            // Load critical data first
+            await Promise.race([
                 this.fetchConnectionStatus(),
-                this.fetchAccountData(),
-                this.fetchPairsData(),
-                this.fetchTickData(),
-                this.fetchSupertrendData()
+                this.fetchTickData()
             ]);
+            
+            // Load other data in background
+            setTimeout(() => {
+                this.fetchAccountData();
+                this.fetchPairsData();
+                this.fetchSupertrendData();
+            }, 100);
             
             console.log('✅ Initial data loaded successfully');
             
@@ -928,9 +994,9 @@ class SuperTrendDashboard {
     trackUpdatePerformance(updateTime) {
         this.updateTimes.push(updateTime);
         
-        // Keep only last 100 measurements
-        if (this.updateTimes.length > 100) {
-            this.updateTimes = this.updateTimes.slice(-50);
+        // Keep only last 50 measurements
+        if (this.updateTimes.length > 50) {
+            this.updateTimes = this.updateTimes.slice(-25);
         }
         
         // Calculate average
@@ -939,7 +1005,10 @@ class SuperTrendDashboard {
         // Update performance indicator
         const perfElement = document.getElementById('performance-indicator');
         if (perfElement) {
-            if (this.avgUpdateTime < 10) {
+            if (this.avgUpdateTime < 5) {
+                perfElement.textContent = 'Ultra-Fast';
+                perfElement.className = 'text-primary-500 font-medium';
+            } else if (this.avgUpdateTime < 15) {
                 perfElement.textContent = 'Optimal';
                 perfElement.className = 'text-primary-500 font-medium';
             } else if (this.avgUpdateTime < 50) {
@@ -964,7 +1033,7 @@ class SuperTrendDashboard {
         const statusDot = document.getElementById('status-dot');
         if (statusDot) {
             if (isConnected) {
-                statusDot.className = 'w-2 h-2 bg-primary-500 rounded-full';
+                statusDot.className = 'w-2 h-2 bg-primary-500 rounded-full transition-all duration-300';
             } else {
                 statusDot.className = 'w-2 h-2 bg-red-500 rounded-full animate-pulse';
             }
@@ -995,23 +1064,21 @@ class SuperTrendDashboard {
     }
     
     calculatePips(spread, symbol) {
-        // Enhanced pip calculation
         if (!symbol) return spread * 10000;
         
         const symbolUpper = symbol.toUpperCase();
         if (symbolUpper.includes('JPY')) {
-            return spread * 100; // JPY pairs have different pip calculation
+            return spread * 100;
         } else if (symbolUpper.includes('XAU') || symbolUpper.includes('GOLD')) {
-            return spread * 10; // Gold has different pip calculation
+            return spread * 10;
         } else if (symbolUpper.includes('BTC') || symbolUpper.includes('ETH')) {
-            return spread; // Crypto pairs use different calculation
+            return spread;
         }
-        return spread * 10000; // Standard pip calculation
+        return spread * 10000;
     }
     
     showError(message) {
         console.error('❌ Dashboard Error:', message);
-        // Could implement toast notifications here
     }
     
     togglePlayPause() {
@@ -1024,9 +1091,11 @@ class SuperTrendDashboard {
             if (this.isRunning) {
                 if (icon) icon.setAttribute('data-lucide', 'pause');
                 if (text) text.textContent = 'Pause';
+                btn.className = 'flex items-center px-4 py-2 rounded-lg btn-premium text-white font-medium text-sm transition-all duration-300';
             } else {
                 if (icon) icon.setAttribute('data-lucide', 'play');
                 if (text) text.textContent = 'Play';
+                btn.className = 'flex items-center px-4 py-2 rounded-lg bg-gray-600 text-white font-medium text-sm transition-all duration-300';
             }
             
             // Refresh icons
@@ -1043,11 +1112,12 @@ class SuperTrendDashboard {
         this.chartData = [];
         if (this.chart) {
             this.chart.data.datasets[0].data = [];
-            this.chart.update();
+            this.chart.update('none');
         }
         
-        // Clear price format cache
+        // Clear caches
         this.priceFormatCache.clear();
+        this.updateTimes = [];
         
         // Reset to default pair
         this.selectPair('EURUSD');
@@ -1176,7 +1246,7 @@ class SuperTrendDashboard {
 
 // Initialize dashboard when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('🚀 SuperTrend Pro MT5 Dashboard - Enhanced Real-time Version');
+    console.log('🚀 SuperTrend Pro MT5 Dashboard - Ultra-Fast Real-time Version');
     window.dashboard = new SuperTrendDashboard();
 });
 
@@ -1185,10 +1255,29 @@ document.addEventListener('visibilitychange', () => {
     if (window.dashboard) {
         if (document.hidden) {
             console.log('📱 Page hidden - reducing update frequency');
-            window.dashboard.updateInterval = 2000; // Slower updates when hidden
+            window.dashboard.updateInterval = 1000;
+            window.dashboard.fastTickInterval = 500;
         } else {
-            console.log('📱 Page visible - resuming normal update frequency');
-            window.dashboard.updateInterval = 1000; // Fast updates when visible
+            console.log('📱 Page visible - resuming ultra-fast updates');
+            window.dashboard.updateInterval = 500;
+            window.dashboard.fastTickInterval = 250;
         }
+    }
+});
+
+// Handle window focus for optimal performance
+window.addEventListener('focus', () => {
+    if (window.dashboard) {
+        console.log('🎯 Window focused - enabling ultra-fast mode');
+        window.dashboard.updateInterval = 500;
+        window.dashboard.fastTickInterval = 250;
+    }
+});
+
+window.addEventListener('blur', () => {
+    if (window.dashboard) {
+        console.log('💤 Window blurred - reducing update frequency');
+        window.dashboard.updateInterval = 1000;
+        window.dashboard.fastTickInterval = 500;
     }
 });
