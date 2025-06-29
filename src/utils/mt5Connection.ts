@@ -1,11 +1,14 @@
 import { MarketData, MT5Connection, MT5Tick, CurrencyPair } from '../types/trading';
 import { MT5TerminalConnection } from './mt5TerminalConnection';
+import { MT5FileReader } from './mt5FileReader';
 
 export class MT5ConnectionManager {
   private terminalConnection: MT5TerminalConnection | null = null;
+  private fileReader: MT5FileReader | null = null;
   private connectionStatus: MT5Connection = { isConnected: false };
   private subscribers: Map<string, (data: any) => void> = new Map();
   private isWebContainer = false;
+  private connectionMode: 'websocket' | 'file' | 'demo' = 'demo';
 
   constructor(private serverUrl?: string) {
     // Detect if running in WebContainer environment
@@ -14,21 +17,110 @@ export class MT5ConnectionManager {
                          window.location.hostname.includes('stackblitz');
     
     if (!this.isWebContainer) {
-      this.initializeTerminalConnection();
+      this.initializeConnections();
     } else {
-      console.log('WebContainer environment detected, MT5 Terminal connection disabled');
+      console.log('ℹ️ WebContainer environment detected, MT5 Terminal connection disabled');
       this.connectionStatus.isConnected = false;
       this.notifySubscribers('connection', this.connectionStatus);
     }
   }
 
-  private initializeTerminalConnection() {
-    const url = this.serverUrl || 'ws://localhost:8765';
-    console.log('Initializing MT5 Terminal connection...');
+  private async initializeConnections() {
+    console.log('🔍 Initializing MT5 connections...');
     
-    this.terminalConnection = new MT5TerminalConnection(url);
+    // Try WebSocket connection first
+    await this.tryWebSocketConnection();
     
-    // Forward events from terminal connection
+    // If WebSocket fails, try file-based connection
+    if (!this.connectionStatus.isConnected) {
+      await this.tryFileConnection();
+    }
+    
+    // If both fail, we'll stay in demo mode
+    if (!this.connectionStatus.isConnected) {
+      console.log('⚠️ No MT5 connection available, staying in demo mode');
+    }
+  }
+
+  private async tryWebSocketConnection(): Promise<boolean> {
+    try {
+      console.log('🔌 Attempting WebSocket connection to MT5 Terminal...');
+      const url = this.serverUrl || 'ws://localhost:8765';
+      
+      this.terminalConnection = new MT5TerminalConnection(url);
+      
+      // Set up event forwarding
+      this.setupTerminalConnectionEvents();
+      
+      // Test connection with timeout
+      const connected = await this.terminalConnection.testConnection();
+      
+      if (connected) {
+        console.log('✅ WebSocket connection to MT5 Terminal successful');
+        this.connectionMode = 'websocket';
+        return true;
+      } else {
+        console.log('❌ WebSocket connection to MT5 Terminal failed');
+        this.terminalConnection.disconnect();
+        this.terminalConnection = null;
+        return false;
+      }
+    } catch (error) {
+      console.log('❌ WebSocket connection error:', error);
+      if (this.terminalConnection) {
+        this.terminalConnection.disconnect();
+        this.terminalConnection = null;
+      }
+      return false;
+    }
+  }
+
+  private async tryFileConnection(): Promise<boolean> {
+    try {
+      console.log('📁 Attempting file-based connection to MT5...');
+      
+      this.fileReader = new MT5FileReader(2000); // Check every 2 seconds
+      
+      // Test if files are accessible
+      const testResult = await this.fileReader.testFileAccess();
+      
+      if (testResult.success) {
+        console.log('✅ File-based connection to MT5 successful');
+        console.log(`📄 Found files: ${testResult.foundFiles.join(', ')}`);
+        
+        this.connectionMode = 'file';
+        this.setupFileReaderEvents();
+        
+        // Set initial connection status
+        this.connectionStatus = {
+          isConnected: true,
+          server: 'File-based Connection',
+          lastUpdate: Date.now()
+        };
+        this.notifySubscribers('connection', this.connectionStatus);
+        
+        return true;
+      } else {
+        console.log('❌ File-based connection failed:', testResult.message);
+        if (this.fileReader) {
+          this.fileReader.stop();
+          this.fileReader = null;
+        }
+        return false;
+      }
+    } catch (error) {
+      console.log('❌ File-based connection error:', error);
+      if (this.fileReader) {
+        this.fileReader.stop();
+        this.fileReader = null;
+      }
+      return false;
+    }
+  }
+
+  private setupTerminalConnectionEvents() {
+    if (!this.terminalConnection) return;
+
     this.terminalConnection.subscribe('connection', (status: MT5Connection) => {
       this.connectionStatus = status;
       this.notifySubscribers('connection', status);
@@ -63,6 +155,28 @@ export class MT5ConnectionManager {
     });
   }
 
+  private setupFileReaderEvents() {
+    if (!this.fileReader) return;
+
+    this.fileReader.subscribe('connection', (connection: MT5Connection) => {
+      this.connectionStatus = { ...this.connectionStatus, ...connection };
+      this.notifySubscribers('connection', this.connectionStatus);
+    });
+
+    this.fileReader.subscribe('tick', (tick: MT5Tick) => {
+      this.notifySubscribers('tick', tick);
+    });
+
+    this.fileReader.subscribe('ohlc', (data: MarketData) => {
+      this.notifySubscribers('ohlc', data);
+    });
+
+    this.fileReader.subscribe('symbols', (symbols: CurrencyPair[]) => {
+      console.log(`Received ${symbols.length} symbols from MT5 files`);
+      this.notifySubscribers('symbols', symbols);
+    });
+  }
+
   private notifySubscribers(event: string, data: any) {
     const callback = this.subscribers.get(event);
     if (callback) {
@@ -80,40 +194,51 @@ export class MT5ConnectionManager {
   }
 
   subscribeToSymbol(symbol: string, timeframe: string = 'M1') {
-    if (this.terminalConnection && this.connectionStatus.isConnected) {
-      console.log(`Subscribing to ${symbol} (${timeframe})`);
+    if (this.connectionMode === 'websocket' && this.terminalConnection && this.connectionStatus.isConnected) {
+      console.log(`Subscribing to ${symbol} (${timeframe}) via WebSocket`);
       this.terminalConnection.subscribeToSymbol(symbol, timeframe);
+    } else if (this.connectionMode === 'file') {
+      console.log(`Monitoring ${symbol} via file-based connection`);
+      // File-based connection automatically monitors all symbols
     }
   }
 
   unsubscribeFromSymbol(symbol: string) {
-    if (this.terminalConnection && this.connectionStatus.isConnected) {
-      console.log(`Unsubscribing from ${symbol}`);
+    if (this.connectionMode === 'websocket' && this.terminalConnection && this.connectionStatus.isConnected) {
+      console.log(`Unsubscribing from ${symbol} via WebSocket`);
       this.terminalConnection.unsubscribeFromSymbol(symbol);
     }
+    // File-based connection doesn't need explicit unsubscription
   }
 
   getSymbols() {
-    if (this.terminalConnection && this.connectionStatus.isConnected) {
+    if (this.connectionMode === 'websocket' && this.terminalConnection && this.connectionStatus.isConnected) {
       this.terminalConnection.getSymbols();
     }
+    // File-based connection gets symbols automatically when symbols_list.json is updated
   }
 
   getHistoricalData(symbol: string, timeframe: string, count: number = 100) {
-    if (this.terminalConnection && this.connectionStatus.isConnected) {
-      console.log(`Requesting ${count} bars of ${symbol} ${timeframe} data`);
+    if (this.connectionMode === 'websocket' && this.terminalConnection && this.connectionStatus.isConnected) {
+      console.log(`Requesting ${count} bars of ${symbol} ${timeframe} data via WebSocket`);
       this.terminalConnection.getHistoricalData(symbol, timeframe, count);
     }
+    // File-based connection doesn't support historical data requests
   }
 
   getAccountInfo() {
-    if (this.terminalConnection && this.connectionStatus.isConnected) {
+    if (this.connectionMode === 'websocket' && this.terminalConnection && this.connectionStatus.isConnected) {
       this.terminalConnection.getAccountInfo();
     }
+    // File-based connection gets account info automatically when account_info.json is updated
   }
 
   getConnectionStatus(): MT5Connection {
     return this.connectionStatus;
+  }
+
+  getConnectionMode(): string {
+    return this.connectionMode;
   }
 
   isConnected(): boolean {
@@ -129,29 +254,43 @@ export class MT5ConnectionManager {
       return false;
     }
     
-    if (this.terminalConnection) {
+    if (this.connectionMode === 'websocket' && this.terminalConnection) {
       return await this.terminalConnection.testConnection();
+    } else if (this.connectionMode === 'file' && this.fileReader) {
+      const testResult = await this.fileReader.testFileAccess();
+      return testResult.success;
     }
     
     return false;
   }
 
   disconnect() {
+    console.log('Disconnecting from MT5...');
+    
     if (this.terminalConnection) {
-      console.log('Disconnecting from MT5 Terminal');
       this.terminalConnection.disconnect();
       this.terminalConnection = null;
     }
+    
+    if (this.fileReader) {
+      this.fileReader.stop();
+      this.fileReader = null;
+    }
+    
     this.connectionStatus.isConnected = false;
+    this.connectionMode = 'demo';
   }
 
   // Reconnect method
-  reconnect() {
-    console.log('Attempting to reconnect to MT5 Terminal...');
+  async reconnect() {
+    console.log('Attempting to reconnect to MT5...');
     this.disconnect();
-    setTimeout(() => {
-      this.initializeTerminalConnection();
-    }, 1000);
+    
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    if (!this.isWebContainer) {
+      await this.initializeConnections();
+    }
   }
 }
 
