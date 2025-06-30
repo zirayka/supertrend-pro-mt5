@@ -1,15 +1,15 @@
 /**
- * SuperTrend Pro MT5 Dashboard - Final Optimized Real-time JavaScript
- * Ultra-fast updates with minimal delay and enhanced performance
+ * SuperTrend Pro MT5 Dashboard - Fixed Real-time Updates
+ * Complete solution for live data streaming with minimal delay
  */
 
 class SuperTrendDashboard {
     constructor() {
-        // Ultra-optimized settings for minimal delay
-        this.updateInterval = 500; // Ultra-fast 500ms updates
-        this.fastTickInterval = 250; // Super fast tick updates
-        this.reconnectDelay = 1000; // Very quick reconnection
-        this.maxRetries = 15;
+        // Optimized settings for real-time updates
+        this.updateInterval = 1000; // 1 second for general updates
+        this.fastTickInterval = 500; // 500ms for tick updates
+        this.reconnectDelay = 2000; // 2 seconds for reconnection
+        this.maxRetries = 10;
         this.retryCount = 0;
         
         // WebSocket connection for real-time data
@@ -31,7 +31,7 @@ class SuperTrendDashboard {
         // Chart instance
         this.chart = null;
         this.chartData = [];
-        this.maxChartPoints = 50; // Reduced for better performance
+        this.maxChartPoints = 100;
         
         // UI state
         this.selectedPair = 'EURUSD';
@@ -43,38 +43,43 @@ class SuperTrendDashboard {
         this.avgUpdateTime = 0;
         this.lastTickTime = 0;
         
-        // Enhanced price formatting cache
+        // Price formatting cache
         this.priceFormatCache = new Map();
-        this.formatCacheSize = 500; // Limit cache size
+        this.formatCacheSize = 1000;
         
         // Update throttling
         this.lastUIUpdate = 0;
-        this.uiUpdateThrottle = 100; // Minimum 100ms between UI updates
+        this.uiUpdateThrottle = 50; // 50ms minimum between UI updates
+        
+        // Polling intervals
+        this.tickPollingInterval = null;
+        this.dataPollingInterval = null;
+        this.supertrendPollingInterval = null;
         
         // Initialize dashboard
         this.init();
     }
     
     async init() {
-        console.log('🚀 Initializing SuperTrend Pro MT5 Dashboard - Ultra-Optimized Version');
+        console.log('🚀 Initializing SuperTrend Pro MT5 Dashboard - Fixed Real-time Version');
         
         try {
             // Setup event listeners first
             this.setupEventListeners();
             
-            // Initialize chart with optimized settings
+            // Initialize chart
             this.initializeChart();
             
-            // Start WebSocket connection immediately
+            // Start WebSocket connection
             this.connectWebSocket();
             
-            // Start ultra-fast data polling as backup
-            this.startUltraFastPolling();
+            // Start aggressive polling as primary data source
+            this.startAggressivePolling();
             
-            // Load initial data immediately
+            // Load initial data
             await this.loadInitialData();
             
-            console.log('✅ Dashboard initialized with ultra-fast updates');
+            console.log('✅ Dashboard initialized with fixed real-time updates');
             
         } catch (error) {
             console.error('❌ Error initializing dashboard:', error);
@@ -92,11 +97,11 @@ class SuperTrendDashboard {
             this.ws = new WebSocket(wsUrl);
             
             this.ws.onopen = () => {
-                console.log('✅ WebSocket connected - Ultra-fast mode enabled');
+                console.log('✅ WebSocket connected');
                 this.isConnected = true;
                 this.retryCount = 0;
                 
-                // Subscribe to all events for real-time updates
+                // Subscribe to all events
                 this.ws.send(JSON.stringify({
                     type: 'subscribe',
                     events: ['tick', 'connection', 'account_info', 'positions', 'orders', 'symbols', 'supertrend_update']
@@ -115,7 +120,7 @@ class SuperTrendDashboard {
             };
             
             this.ws.onclose = () => {
-                console.log('🔌 WebSocket disconnected - switching to polling mode');
+                console.log('🔌 WebSocket disconnected');
                 this.isConnected = false;
                 this.updateConnectionStatus(false);
                 this.scheduleReconnect();
@@ -136,7 +141,7 @@ class SuperTrendDashboard {
     scheduleReconnect() {
         if (this.retryCount < this.maxRetries) {
             this.retryCount++;
-            const delay = Math.min(this.reconnectDelay * Math.min(this.retryCount, 3), 5000);
+            const delay = Math.min(this.reconnectDelay * this.retryCount, 10000);
             
             console.log(`🔄 Scheduling WebSocket reconnect in ${delay}ms (attempt ${this.retryCount})`);
             
@@ -147,8 +152,6 @@ class SuperTrendDashboard {
     }
     
     handleWebSocketMessage(message) {
-        const startTime = performance.now();
-        
         try {
             switch (message.type) {
                 case 'tick':
@@ -176,108 +179,60 @@ class SuperTrendDashboard {
                     this.updateConnectionStatus(message.data.is_connected);
                     break;
             }
-            
-            // Track update performance
-            const updateTime = performance.now() - startTime;
-            this.trackUpdatePerformance(updateTime);
-            
         } catch (error) {
             console.debug('Error handling WebSocket message:', error);
         }
     }
     
-    handleTickUpdate(tickData) {
-        if (!tickData || !tickData.symbol) return;
+    startAggressivePolling() {
+        console.log('🔄 Starting aggressive polling for real-time updates');
         
-        // Throttle UI updates for better performance
-        const now = performance.now();
-        if (now - this.lastUIUpdate < this.uiUpdateThrottle) {
-            return;
-        }
-        this.lastUIUpdate = now;
-        
-        this.currentData.tick = tickData;
-        
-        // Update price display immediately for selected pair
-        if (tickData.symbol === this.selectedPair) {
-            this.updatePriceDisplay(tickData);
-            this.updateChart(tickData);
-        }
-        
-        // Update last update time
-        this.lastUpdateTime = new Date();
-        this.updateLastUpdateDisplay();
-    }
-    
-    handleConnectionUpdate(connectionData) {
-        this.currentData.connection = connectionData;
-        this.updateConnectionDisplay();
-    }
-    
-    handleAccountUpdate(accountData) {
-        this.currentData.account = accountData;
-        this.updateAccountDisplay();
-    }
-    
-    handlePositionsUpdate(positionsData) {
-        this.currentData.positions = positionsData || [];
-        this.updateTradingStats();
-    }
-    
-    handleOrdersUpdate(ordersData) {
-        this.currentData.orders = ordersData || [];
-        this.updateTradingStats();
-    }
-    
-    handleSymbolsUpdate(symbolsData) {
-        this.currentData.pairs = symbolsData || [];
-        this.updatePairsList();
-    }
-    
-    handleSupertrendUpdate(supertrendData) {
-        this.currentData.supertrend = supertrendData;
-        this.updateSupertrendDisplay();
-    }
-    
-    startUltraFastPolling() {
-        // Ultra-fast tick polling for critical price updates
-        setInterval(async () => {
-            if (!this.isConnected && this.isRunning) {
+        // Ultra-fast tick polling
+        this.tickPollingInterval = setInterval(async () => {
+            if (this.isRunning) {
                 try {
                     await this.fetchTickData();
                 } catch (error) {
-                    // Silent fail for polling
+                    console.debug('Tick polling error:', error);
                 }
             }
         }, this.fastTickInterval);
         
-        // Regular data polling for other updates
-        setInterval(async () => {
+        // Regular data polling
+        this.dataPollingInterval = setInterval(async () => {
             if (this.isRunning) {
                 try {
-                    // Fetch data concurrently for better performance
+                    // Fetch multiple data sources concurrently
                     const promises = [
                         this.fetchConnectionStatus(),
-                        this.fetchAccountData(),
-                        this.fetchSupertrendData()
+                        this.fetchAccountData()
                     ];
                     
-                    // Don't wait for all to complete, process as they come
-                    Promise.allSettled(promises);
-                    
+                    await Promise.allSettled(promises);
                 } catch (error) {
-                    // Silent fail for polling
+                    console.debug('Data polling error:', error);
                 }
             }
         }, this.updateInterval);
         
-        // Slower polling for pairs (they don't change often)
+        // SuperTrend calculation polling
+        this.supertrendPollingInterval = setInterval(async () => {
+            if (this.isRunning) {
+                try {
+                    await this.fetchSupertrendData();
+                } catch (error) {
+                    console.debug('SuperTrend polling error:', error);
+                }
+            }
+        }, this.updateInterval * 2); // Less frequent for SuperTrend
+        
+        // Pairs polling (less frequent)
         setInterval(async () => {
             if (this.isRunning && this.currentData.pairs.length === 0) {
                 try {
                     await this.fetchPairsData();
                 } catch (error) {
-                    // Silent fail
+                    console.debug('Pairs polling error:', error);
                 }
             }
         }, 5000);
@@ -297,7 +252,7 @@ class SuperTrendDashboard {
                 }
             }
         } catch (error) {
-            // Silent fail for polling
+            console.debug('Fetch tick error:', error);
         }
     }
     
@@ -309,7 +264,7 @@ class SuperTrendDashboard {
                 this.handleConnectionUpdate(data);
             }
         } catch (error) {
-            // Silent fail
+            console.debug('Fetch connection error:', error);
         }
     }
     
@@ -329,7 +284,7 @@ class SuperTrendDashboard {
                 }
             }
         } catch (error) {
-            // Silent fail
+            console.debug('Fetch account error:', error);
         }
     }
     
@@ -341,7 +296,7 @@ class SuperTrendDashboard {
                 this.handleSymbolsUpdate(pairs);
             }
         } catch (error) {
-            // Silent fail
+            console.debug('Fetch pairs error:', error);
         }
     }
     
@@ -363,8 +318,69 @@ class SuperTrendDashboard {
                 }
             }
         } catch (error) {
-            // Silent fail
+            console.debug('Fetch SuperTrend error:', error);
         }
+    }
+    
+    handleTickUpdate(tickData) {
+        if (!tickData || !tickData.symbol) return;
+        
+        // Throttle UI updates for performance
+        const now = performance.now();
+        if (now - this.lastUIUpdate < this.uiUpdateThrottle) {
+            return;
+        }
+        this.lastUIUpdate = now;
+        
+        this.currentData.tick = tickData;
+        
+        // Update price display for selected pair
+        if (tickData.symbol === this.selectedPair) {
+            this.updatePriceDisplay(tickData);
+            this.updateChart(tickData);
+        }
+        
+        // Update last update time
+        this.lastUpdateTime = new Date();
+        this.updateLastUpdateDisplay();
+        
+        console.log(`📊 Tick update: ${tickData.symbol} = ${tickData.bid}/${tickData.ask}`);
+    }
+    
+    handleConnectionUpdate(connectionData) {
+        this.currentData.connection = connectionData;
+        this.updateConnectionDisplay();
+        console.log(`🔗 Connection update: ${connectionData.is_connected ? 'Connected' : 'Disconnected'}`);
+    }
+    
+    handleAccountUpdate(accountData) {
+        this.currentData.account = accountData;
+        this.updateAccountDisplay();
+        console.log(`💰 Account update: Balance ${accountData.balance}`);
+    }
+    
+    handlePositionsUpdate(positionsData) {
+        this.currentData.positions = positionsData || [];
+        this.updateTradingStats();
+        console.log(`📈 Positions update: ${this.currentData.positions.length} positions`);
+    }
+    
+    handleOrdersUpdate(ordersData) {
+        this.currentData.orders = ordersData || [];
+        this.updateTradingStats();
+        console.log(`📋 Orders update: ${this.currentData.orders.length} orders`);
+    }
+    
+    handleSymbolsUpdate(symbolsData) {
+        this.currentData.pairs = symbolsData || [];
+        this.updatePairsList();
+        console.log(`📊 Symbols update: ${this.currentData.pairs.length} pairs`);
+    }
+    
+    handleSupertrendUpdate(supertrendData) {
+        this.currentData.supertrend = supertrendData;
+        this.updateSupertrendDisplay();
+        console.log(`📈 SuperTrend update: ${supertrendData.trend === 1 ? 'Bullish' : 'Bearish'}`);
     }
     
     // Enhanced price formatting with optimized caching
@@ -391,9 +407,8 @@ class SuperTrendDashboard {
             formatted = price.toFixed(5);
         }
         
-        // Optimized cache management
+        // Cache management
         if (this.priceFormatCache.size >= this.formatCacheSize) {
-            // Clear oldest entries
             const keysToDelete = Array.from(this.priceFormatCache.keys()).slice(0, 100);
             keysToDelete.forEach(key => this.priceFormatCache.delete(key));
         }
@@ -484,7 +499,7 @@ class SuperTrendDashboard {
             const price = tickData.last || tickData.bid || tickData.ask || 0;
             
             // Throttle chart updates for performance
-            if (now - this.lastTickTime < 200) { // Max 5 updates per second
+            if (now - this.lastTickTime < 100) { // Max 10 updates per second
                 return;
             }
             this.lastTickTime = now;
@@ -532,7 +547,7 @@ class SuperTrendDashboard {
                 options: {
                     responsive: true,
                     maintainAspectRatio: false,
-                    animation: false, // Disable all animations for maximum performance
+                    animation: false,
                     interaction: {
                         intersect: false,
                         mode: 'index'
@@ -545,7 +560,7 @@ class SuperTrendDashboard {
                             enabled: true,
                             mode: 'index',
                             intersect: false,
-                            animation: false, // Disable tooltip animations
+                            animation: false,
                             callbacks: {
                                 label: (context) => {
                                     return `Price: ${this.formatPrice(context.parsed.y, this.selectedPair)}`;
@@ -578,14 +593,13 @@ class SuperTrendDashboard {
                             }
                         }
                     },
-                    // Performance optimizations
                     parsing: false,
                     normalized: true,
                     spanGaps: true
                 }
             });
             
-            console.log('✅ Chart initialized with ultra-fast settings');
+            console.log('✅ Chart initialized');
             
         } catch (error) {
             console.error('❌ Error initializing chart:', error);
@@ -595,7 +609,6 @@ class SuperTrendDashboard {
     updateConnectionDisplay() {
         const connection = this.currentData.connection;
         
-        // Batch DOM updates
         requestAnimationFrame(() => {
             // Update main connection status
             const statusElement = document.getElementById('connection-status');
@@ -624,7 +637,6 @@ class SuperTrendDashboard {
                     }
                 }
                 
-                // Refresh icons efficiently
                 if (window.lucide) {
                     window.lucide.createIcons();
                 }
@@ -654,7 +666,6 @@ class SuperTrendDashboard {
     updateAccountDisplay() {
         const account = this.currentData.account;
         
-        // Batch DOM updates
         requestAnimationFrame(() => {
             if (account.balance !== undefined) {
                 this.updateElement('account-balance', this.formatCurrency(account.balance));
@@ -697,7 +708,6 @@ class SuperTrendDashboard {
         const positions = this.currentData.positions || [];
         const orders = this.currentData.orders || [];
         
-        // Batch DOM updates
         requestAnimationFrame(() => {
             this.updateElement('open-positions', positions.length.toString());
             this.updateElement('pending-orders', orders.length.toString());
@@ -735,7 +745,6 @@ class SuperTrendDashboard {
                 </div>
             `;
             
-            // Refresh icons
             if (window.lucide) {
                 window.lucide.createIcons();
             }
@@ -745,7 +754,6 @@ class SuperTrendDashboard {
         // Limit to first 50 pairs for performance
         const displayPairs = pairs.slice(0, 50);
         
-        // Use DocumentFragment for better performance
         const fragment = document.createDocumentFragment();
         
         displayPairs.forEach(pair => {
@@ -775,7 +783,6 @@ class SuperTrendDashboard {
         // Re-attach event listeners
         this.attachPairEventListeners();
         
-        // Refresh icons
         if (window.lucide) {
             window.lucide.createIcons();
         }
@@ -785,7 +792,6 @@ class SuperTrendDashboard {
         const supertrend = this.currentData.supertrend;
         if (!supertrend) return;
         
-        // Batch DOM updates
         requestAnimationFrame(() => {
             // Update trend indicator
             const trendIndicator = document.getElementById('trend-indicator');
@@ -806,7 +812,6 @@ class SuperTrendDashboard {
                     'flex items-center px-3 py-1.5 rounded-full gradient-primary text-sm transition-all duration-300' :
                     'flex items-center px-3 py-1.5 rounded-full gradient-danger text-sm transition-all duration-300';
                 
-                // Refresh icons
                 if (window.lucide) {
                     window.lucide.createIcons();
                 }
@@ -882,7 +887,7 @@ class SuperTrendDashboard {
             connectionTestBtn.addEventListener('click', () => this.showConnectionTest());
         }
         
-        // Search functionality with debouncing
+        // Search functionality
         const searchInput = document.getElementById('pair-search');
         if (searchInput) {
             let searchTimeout;
@@ -991,36 +996,6 @@ class SuperTrendDashboard {
         }
     }
     
-    trackUpdatePerformance(updateTime) {
-        this.updateTimes.push(updateTime);
-        
-        // Keep only last 50 measurements
-        if (this.updateTimes.length > 50) {
-            this.updateTimes = this.updateTimes.slice(-25);
-        }
-        
-        // Calculate average
-        this.avgUpdateTime = this.updateTimes.reduce((a, b) => a + b, 0) / this.updateTimes.length;
-        
-        // Update performance indicator
-        const perfElement = document.getElementById('performance-indicator');
-        if (perfElement) {
-            if (this.avgUpdateTime < 5) {
-                perfElement.textContent = 'Ultra-Fast';
-                perfElement.className = 'text-primary-500 font-medium';
-            } else if (this.avgUpdateTime < 15) {
-                perfElement.textContent = 'Optimal';
-                perfElement.className = 'text-primary-500 font-medium';
-            } else if (this.avgUpdateTime < 50) {
-                perfElement.textContent = 'Good';
-                perfElement.className = 'text-yellow-500 font-medium';
-            } else {
-                perfElement.textContent = 'Slow';
-                perfElement.className = 'text-red-500 font-medium';
-            }
-        }
-    }
-    
     updateLastUpdateDisplay() {
         if (this.lastUpdateTime) {
             const timeStr = this.lastUpdateTime.toLocaleTimeString();
@@ -1098,7 +1073,6 @@ class SuperTrendDashboard {
                 btn.className = 'flex items-center px-4 py-2 rounded-lg bg-gray-600 text-white font-medium text-sm transition-all duration-300';
             }
             
-            // Refresh icons
             if (window.lucide) {
                 window.lucide.createIcons();
             }
@@ -1242,42 +1216,55 @@ class SuperTrendDashboard {
             }
         });
     }
+    
+    cleanup() {
+        // Clear all intervals
+        if (this.tickPollingInterval) {
+            clearInterval(this.tickPollingInterval);
+        }
+        if (this.dataPollingInterval) {
+            clearInterval(this.dataPollingInterval);
+        }
+        if (this.supertrendPollingInterval) {
+            clearInterval(this.supertrendPollingInterval);
+        }
+        if (this.wsReconnectTimer) {
+            clearTimeout(this.wsReconnectTimer);
+        }
+        
+        // Close WebSocket
+        if (this.ws) {
+            this.ws.close();
+        }
+        
+        console.log('🧹 Dashboard cleaned up');
+    }
 }
 
 // Initialize dashboard when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('🚀 SuperTrend Pro MT5 Dashboard - Ultra-Fast Real-time Version');
+    console.log('🚀 SuperTrend Pro MT5 Dashboard - Fixed Real-time Updates');
     window.dashboard = new SuperTrendDashboard();
 });
 
-// Handle page visibility changes to optimize performance
+// Handle page visibility changes
 document.addEventListener('visibilitychange', () => {
     if (window.dashboard) {
         if (document.hidden) {
             console.log('📱 Page hidden - reducing update frequency');
+            window.dashboard.updateInterval = 2000;
+            window.dashboard.fastTickInterval = 1000;
+        } else {
+            console.log('📱 Page visible - resuming fast updates');
             window.dashboard.updateInterval = 1000;
             window.dashboard.fastTickInterval = 500;
-        } else {
-            console.log('📱 Page visible - resuming ultra-fast updates');
-            window.dashboard.updateInterval = 500;
-            window.dashboard.fastTickInterval = 250;
         }
     }
 });
 
-// Handle window focus for optimal performance
-window.addEventListener('focus', () => {
+// Cleanup on page unload
+window.addEventListener('beforeunload', () => {
     if (window.dashboard) {
-        console.log('🎯 Window focused - enabling ultra-fast mode');
-        window.dashboard.updateInterval = 500;
-        window.dashboard.fastTickInterval = 250;
-    }
-});
-
-window.addEventListener('blur', () => {
-    if (window.dashboard) {
-        console.log('💤 Window blurred - reducing update frequency');
-        window.dashboard.updateInterval = 1000;
-        window.dashboard.fastTickInterval = 500;
+        window.dashboard.cleanup();
     }
 });
