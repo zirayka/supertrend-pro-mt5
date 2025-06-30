@@ -1,7 +1,6 @@
 /**
  * SuperTrend Pro MT5 Dashboard - Enhanced JavaScript
- * Fixed to display ALL pairs from MT5 without hardcoding
- * Optimized for real-time updates and better performance
+ * Fixed to display ALL pairs from MT5 with optimized performance and enhanced UI
  */
 
 class SuperTrendDashboard {
@@ -16,11 +15,11 @@ class SuperTrendDashboard {
         this.selectedCategory = 'all';
         this.searchTerm = '';
         
-        // Performance optimization
+        // Performance optimization for large datasets
         this.updateIntervals = {
             tick: 500,        // 0.5 seconds for tick data
             connection: 2000, // 2 seconds for connection status
-            pairs: 10000,     // 10 seconds for pairs refresh
+            pairs: 30000,     // 30 seconds for pairs refresh (less frequent)
             market: 1000      // 1 second for market data
         };
         
@@ -31,7 +30,7 @@ class SuperTrendDashboard {
             market: 0
         };
         
-        // Data caching
+        // Enhanced data caching
         this.cache = {
             pairs: null,
             connection: null,
@@ -39,11 +38,20 @@ class SuperTrendDashboard {
             tickData: new Map()
         };
         
+        // Virtual scrolling for large lists
+        this.virtualScrolling = {
+            itemHeight: 60,
+            visibleItems: 8,
+            scrollTop: 0,
+            startIndex: 0,
+            endIndex: 8
+        };
+        
         this.init();
     }
 
     async init() {
-        console.log('🚀 Initializing SuperTrend Pro MT5 Dashboard');
+        console.log('🚀 Initializing SuperTrend Pro MT5 Dashboard - Enhanced Version');
         
         this.setupEventListeners();
         this.initializeChart();
@@ -58,7 +66,7 @@ class SuperTrendDashboard {
     }
 
     setupEventListeners() {
-        // Pair search functionality
+        // Enhanced pair search functionality
         const searchInput = document.getElementById('pair-search');
         if (searchInput) {
             searchInput.addEventListener('input', (e) => {
@@ -67,7 +75,7 @@ class SuperTrendDashboard {
             });
         }
 
-        // Category filters
+        // Enhanced category filters
         document.querySelectorAll('.category-filter').forEach(button => {
             button.addEventListener('click', (e) => {
                 // Update active state
@@ -83,6 +91,14 @@ class SuperTrendDashboard {
                 this.filterAndDisplayPairs();
             });
         });
+
+        // Virtual scrolling for pairs list
+        const pairsContainer = document.getElementById('pairs-list-container');
+        if (pairsContainer) {
+            pairsContainer.addEventListener('scroll', (e) => {
+                this.handleVirtualScroll(e);
+            });
+        }
 
         // Control buttons
         const playPauseBtn = document.getElementById('play-pause-btn');
@@ -116,11 +132,12 @@ class SuperTrendDashboard {
             applySettingsBtn.addEventListener('click', () => this.applySettings());
         }
 
-        // Range sliders
+        // Range sliders with enhanced feedback
         const atrPeriodSlider = document.getElementById('atr-period');
         if (atrPeriodSlider) {
             atrPeriodSlider.addEventListener('input', (e) => {
                 document.getElementById('atr-period-value').textContent = e.target.value;
+                document.getElementById('atr-period-display').textContent = e.target.value;
             });
         }
 
@@ -128,6 +145,7 @@ class SuperTrendDashboard {
         if (multiplierSlider) {
             multiplierSlider.addEventListener('input', (e) => {
                 document.getElementById('multiplier-value').textContent = e.target.value;
+                document.getElementById('multiplier-display').textContent = e.target.value;
             });
         }
 
@@ -163,7 +181,7 @@ class SuperTrendDashboard {
     }
 
     async startDataFetching() {
-        console.log('🔄 Starting data fetching...');
+        console.log('🔄 Starting enhanced data fetching...');
         
         // Start all data fetching processes
         await Promise.all([
@@ -194,11 +212,14 @@ class SuperTrendDashboard {
         try {
             console.log('📊 Fetching ALL pairs data from MT5...');
             
+            // Show loading state
+            this.showPairsLoading();
+            
             // Try multiple endpoints for maximum compatibility
             const endpoints = [
                 '/api/pairs',
                 '/api/pairs/reload',
-                '/api/debug/pairs'
+                '/api/pairs/debug'
             ];
             
             let pairs = null;
@@ -207,7 +228,13 @@ class SuperTrendDashboard {
             for (const endpoint of endpoints) {
                 try {
                     console.log(`🔄 Trying endpoint: ${endpoint}`);
-                    const response = await fetch(endpoint);
+                    const response = await fetch(endpoint, {
+                        method: 'GET',
+                        headers: {
+                            'Accept': 'application/json',
+                            'Cache-Control': 'no-cache'
+                        }
+                    });
                     
                     if (response.ok) {
                         const data = await response.json();
@@ -219,12 +246,16 @@ class SuperTrendDashboard {
                             pairs = data.pairs;
                         } else if (data.data && Array.isArray(data.data)) {
                             pairs = data.data;
+                        } else if (data.result && Array.isArray(data.result)) {
+                            pairs = data.result;
                         }
                         
                         if (pairs && pairs.length > 0) {
                             console.log(`✅ Successfully fetched ${pairs.length} pairs from ${endpoint}`);
                             break;
                         }
+                    } else {
+                        console.warn(`⚠️ Endpoint ${endpoint} returned ${response.status}: ${response.statusText}`);
                     }
                 } catch (error) {
                     console.warn(`⚠️ Endpoint ${endpoint} failed:`, error);
@@ -243,6 +274,12 @@ class SuperTrendDashboard {
             // Process and validate pairs
             const processedPairs = this.processPairsData(pairs);
             
+            if (processedPairs.length === 0) {
+                console.error('❌ No pairs processed successfully');
+                this.showPairsError('No valid trading pairs found. Please check MT5 connection.');
+                return [];
+            }
+            
             // Cache the results
             this.cache.pairs = processedPairs;
             this.lastUpdates.pairs = now;
@@ -251,10 +288,11 @@ class SuperTrendDashboard {
             this.allPairs = processedPairs;
             this.filterAndDisplayPairs();
             
-            // Update pairs count
+            // Update pairs count with category breakdown
             this.updatePairsCount(processedPairs.length);
+            this.updateCategoryStats(processedPairs);
             
-            console.log(`✅ Processed ${processedPairs.length} trading pairs`);
+            console.log(`✅ Processed ${processedPairs.length} trading pairs successfully`);
             return processedPairs;
             
         } catch (error) {
@@ -265,49 +303,53 @@ class SuperTrendDashboard {
     }
 
     processPairsData(rawPairs) {
-        console.log('🔄 Processing pairs data...');
+        console.log(`🔄 Processing ${rawPairs.length} raw pairs...`);
         
         const processedPairs = [];
         const seenSymbols = new Set();
+        let skippedCount = 0;
         
         for (const pair of rawPairs) {
             try {
                 // Skip duplicates
                 if (seenSymbols.has(pair.symbol)) {
+                    skippedCount++;
                     continue;
                 }
                 seenSymbols.add(pair.symbol);
                 
                 // Validate required fields
                 if (!pair.symbol || typeof pair.symbol !== 'string') {
-                    console.warn('⚠️ Invalid pair symbol:', pair);
+                    console.debug('⚠️ Invalid pair symbol:', pair);
+                    skippedCount++;
                     continue;
                 }
                 
-                // Create standardized pair object
+                // Create standardized pair object with enhanced validation
                 const processedPair = {
-                    symbol: pair.symbol.toUpperCase(),
-                    name: pair.name || pair.description || pair.symbol,
+                    symbol: pair.symbol.toUpperCase().trim(),
+                    name: this.cleanPairName(pair.name || pair.description || pair.symbol),
                     category: this.categorizePair(pair.symbol, pair.category),
-                    digits: pair.digits || 5,
-                    point_size: pair.point_size || pair.point || 0.00001,
-                    min_lot: pair.min_lot || pair.volume_min || 0.01,
-                    max_lot: pair.max_lot || pair.volume_max || 100.0,
-                    lot_step: pair.lot_step || pair.volume_step || 0.01,
-                    spread: pair.spread || 2.0,
-                    swap_long: pair.swap_long || -1.0,
-                    swap_short: pair.swap_short || 0.5
+                    digits: this.validateNumber(pair.digits, 5, 0, 8),
+                    point_size: this.validateNumber(pair.point_size || pair.point, 0.00001, 0.000001, 1),
+                    min_lot: this.validateNumber(pair.min_lot || pair.volume_min, 0.01, 0.001, 1000),
+                    max_lot: this.validateNumber(pair.max_lot || pair.volume_max, 100.0, 0.01, 10000),
+                    lot_step: this.validateNumber(pair.lot_step || pair.volume_step, 0.01, 0.001, 100),
+                    spread: this.validateNumber(pair.spread, 2.0, 0, 1000),
+                    swap_long: this.validateNumber(pair.swap_long, -1.0, -1000, 1000),
+                    swap_short: this.validateNumber(pair.swap_short, 0.5, -1000, 1000)
                 };
                 
                 processedPairs.push(processedPair);
                 
             } catch (error) {
-                console.warn('⚠️ Error processing pair:', pair, error);
+                console.debug('⚠️ Error processing pair:', pair, error);
+                skippedCount++;
                 continue;
             }
         }
         
-        // Sort pairs by category and symbol
+        // Sort pairs by category priority and symbol name
         processedPairs.sort((a, b) => {
             const categoryOrder = ['major', 'minor', 'crypto', 'commodities', 'indices', 'exotic', 'other'];
             const aCategoryIndex = categoryOrder.indexOf(a.category);
@@ -320,7 +362,7 @@ class SuperTrendDashboard {
             return a.symbol.localeCompare(b.symbol);
         });
         
-        console.log(`✅ Processed ${processedPairs.length} pairs successfully`);
+        console.log(`✅ Processed ${processedPairs.length} pairs successfully (skipped ${skippedCount})`);
         
         // Log category distribution
         const categoryCount = {};
@@ -332,11 +374,22 @@ class SuperTrendDashboard {
         return processedPairs;
     }
 
+    cleanPairName(name) {
+        if (!name || typeof name !== 'string') return 'Unknown';
+        return name.trim().replace(/[^\w\s\-\.]/g, '').substring(0, 50);
+    }
+
+    validateNumber(value, defaultValue, min = -Infinity, max = Infinity) {
+        const num = parseFloat(value);
+        if (isNaN(num) || !isFinite(num)) return defaultValue;
+        return Math.max(min, Math.min(max, num));
+    }
+
     categorizePair(symbol, existingCategory) {
         // Use existing category if provided and valid
         const validCategories = ['major', 'minor', 'crypto', 'commodities', 'indices', 'exotic', 'other'];
-        if (existingCategory && validCategories.includes(existingCategory)) {
-            return existingCategory;
+        if (existingCategory && validCategories.includes(existingCategory.toLowerCase())) {
+            return existingCategory.toLowerCase();
         }
         
         const symbolUpper = symbol.toUpperCase();
@@ -353,37 +406,42 @@ class SuperTrendDashboard {
             return 'minor';
         }
         
-        // Cryptocurrencies
-        if (symbolUpper.includes('BTC') || symbolUpper.includes('ETH') || symbolUpper.includes('LTC') || 
-            symbolUpper.includes('XRP') || symbolUpper.includes('ADA') || symbolUpper.includes('DOT') ||
-            symbolUpper.includes('LINK') || symbolUpper.includes('BCH') || symbolUpper.includes('EOS') ||
-            symbolUpper.includes('TRX') || symbolUpper.includes('CRYPTO')) {
+        // Cryptocurrencies - Enhanced detection
+        const cryptoKeywords = ['BTC', 'ETH', 'LTC', 'XRP', 'ADA', 'DOT', 'LINK', 'BCH', 'EOS', 'TRX', 'BNB', 'SOL', 'AVAX', 'MATIC', 'ATOM', 'ALGO', 'XLM', 'VET', 'ICP', 'THETA', 'FIL', 'AAVE', 'UNI', 'SUSHI', 'COMP', 'MKR', 'SNX', 'YFI', 'CRV', 'BAL', 'CRYPTO'];
+        if (cryptoKeywords.some(keyword => symbolUpper.includes(keyword))) {
             return 'crypto';
         }
         
-        // Commodities
-        if (symbolUpper.includes('XAU') || symbolUpper.includes('XAG') || symbolUpper.includes('GOLD') || 
-            symbolUpper.includes('SILVER') || symbolUpper.includes('OIL') || symbolUpper.includes('WTI') || 
-            symbolUpper.includes('BRENT') || symbolUpper.includes('USOIL') || symbolUpper.includes('UKOIL') ||
-            symbolUpper.includes('COPPER') || symbolUpper.includes('PLATINUM')) {
+        // Commodities - Enhanced detection
+        const commodityKeywords = ['XAU', 'XAG', 'GOLD', 'SILVER', 'OIL', 'WTI', 'BRENT', 'USOIL', 'UKOIL', 'COPPER', 'PLATINUM', 'PALLADIUM', 'COCOA', 'COFFEE', 'SUGAR', 'WHEAT', 'CORN', 'SOYBEAN', 'COTTON', 'LUMBER', 'NATGAS'];
+        if (commodityKeywords.some(keyword => symbolUpper.includes(keyword))) {
             return 'commodities';
         }
         
-        // Indices
-        if (symbolUpper.includes('US30') || symbolUpper.includes('SPX') || symbolUpper.includes('NAS') || 
-            symbolUpper.includes('UK100') || symbolUpper.includes('GER') || symbolUpper.includes('FRA') || 
-            symbolUpper.includes('JPN') || symbolUpper.includes('AUS') || symbolUpper.includes('HK') ||
-            symbolUpper.includes('CHINA') || symbolUpper.includes('INDEX') || symbolUpper.includes('DOW') ||
-            symbolUpper.includes('NASDAQ') || symbolUpper.includes('SP500')) {
+        // Indices - Enhanced detection
+        const indexKeywords = ['US30', 'SPX', 'SPY', 'NAS', 'NDX', 'UK100', 'FTSE', 'GER', 'DAX', 'FRA', 'CAC', 'JPN', 'NIKKEI', 'AUS', 'ASX', 'HK', 'HSI', 'CHINA', 'CSI', 'INDEX', 'DOW', 'NASDAQ', 'SP500', 'RUSSELL', 'VIX', 'DJI'];
+        if (indexKeywords.some(keyword => symbolUpper.includes(keyword))) {
             return 'indices';
         }
         
         // Exotic forex pairs (6-character currency pairs not in major/minor)
         if (symbolUpper.length === 6 && /^[A-Z]{6}$/.test(symbolUpper)) {
-            return 'exotic';
+            // Check if it's a known exotic pair
+            const exoticPairs = ['USDTRY', 'USDZAR', 'USDMXN', 'USDBRL', 'USDRUB', 'USDCNH', 'USDINR', 'USDKRW', 'USDSGD', 'USDHKD', 'USDTHB', 'USDPLN', 'USDHUF', 'USDCZK', 'USDSEK', 'USDNOK', 'USDDKK'];
+            if (exoticPairs.includes(symbolUpper) || this.isLikelyForexPair(symbolUpper)) {
+                return 'exotic';
+            }
         }
         
         return 'other';
+    }
+
+    isLikelyForexPair(symbol) {
+        // Common currency codes
+        const currencies = ['USD', 'EUR', 'GBP', 'JPY', 'CHF', 'AUD', 'CAD', 'NZD', 'SEK', 'NOK', 'DKK', 'PLN', 'HUF', 'CZK', 'TRY', 'ZAR', 'MXN', 'BRL', 'RUB', 'CNH', 'INR', 'KRW', 'SGD', 'HKD', 'THB'];
+        const first3 = symbol.substring(0, 3);
+        const last3 = symbol.substring(3, 6);
+        return currencies.includes(first3) && currencies.includes(last3);
     }
 
     filterAndDisplayPairs() {
@@ -405,19 +463,19 @@ class SuperTrendDashboard {
         }
         
         this.filteredPairs = filtered;
-        this.displayPairs(filtered);
+        this.displayPairsWithVirtualScrolling(filtered);
         
         console.log(`📊 Displaying ${filtered.length} of ${this.allPairs.length} pairs`);
     }
 
-    displayPairs(pairs) {
+    displayPairsWithVirtualScrolling(pairs) {
         const pairsList = document.getElementById('pairs-list');
         if (!pairsList) return;
         
         if (pairs.length === 0) {
             pairsList.innerHTML = `
-                <div class="text-center text-gray-400 py-6">
-                    <i data-lucide="search-x" class="w-8 h-8 mx-auto mb-2 opacity-50"></i>
+                <div class="text-center text-gray-400 py-8">
+                    <i data-lucide="search-x" class="w-8 h-8 mx-auto mb-3 opacity-50"></i>
                     <p class="font-medium text-sm">No pairs found</p>
                     <p class="text-xs">Try adjusting your search or filter</p>
                 </div>
@@ -426,29 +484,12 @@ class SuperTrendDashboard {
             return;
         }
         
-        const pairsHTML = pairs.map(pair => `
-            <div class="pair-item p-3 rounded-lg cursor-pointer transition-all duration-200 hover:bg-white/5" 
-                 data-symbol="${pair.symbol}" 
-                 onclick="dashboard.selectPair('${pair.symbol}')">
-                <div class="flex items-center justify-between">
-                    <div class="flex-1">
-                        <div class="flex items-center space-x-2">
-                            <span class="font-bold text-white text-sm">${pair.symbol}</span>
-                            <span class="category-${pair.category} px-2 py-0.5 rounded text-xs font-medium">
-                                ${pair.category.toUpperCase()}
-                            </span>
-                        </div>
-                        <div class="text-xs text-gray-400 mt-1 truncate">${pair.name}</div>
-                    </div>
-                    <div class="text-right">
-                        <div class="text-yellow-400 font-medium text-sm">${pair.spread.toFixed(1)} pips</div>
-                        <div class="text-xs text-gray-500">Spread</div>
-                    </div>
-                </div>
-            </div>
-        `).join('');
-        
-        pairsList.innerHTML = pairsHTML;
+        // For large datasets, implement virtual scrolling
+        if (pairs.length > 50) {
+            this.renderVirtualScrollList(pairs);
+        } else {
+            this.renderFullList(pairs);
+        }
         
         // Highlight selected pair
         this.highlightSelectedPair();
@@ -457,16 +498,111 @@ class SuperTrendDashboard {
         lucide.createIcons();
     }
 
+    renderVirtualScrollList(pairs) {
+        const pairsList = document.getElementById('pairs-list');
+        const container = document.getElementById('pairs-list-container');
+        
+        // Calculate visible range
+        const containerHeight = container.clientHeight;
+        const itemHeight = this.virtualScrolling.itemHeight;
+        const visibleCount = Math.ceil(containerHeight / itemHeight) + 2; // Buffer
+        
+        const scrollTop = container.scrollTop;
+        const startIndex = Math.floor(scrollTop / itemHeight);
+        const endIndex = Math.min(startIndex + visibleCount, pairs.length);
+        
+        // Create virtual list with proper spacing
+        const totalHeight = pairs.length * itemHeight;
+        const offsetY = startIndex * itemHeight;
+        
+        let html = `<div style="height: ${totalHeight}px; position: relative;">`;
+        html += `<div style="transform: translateY(${offsetY}px);">`;
+        
+        for (let i = startIndex; i < endIndex; i++) {
+            const pair = pairs[i];
+            html += this.createPairItemHTML(pair, i);
+        }
+        
+        html += '</div></div>';
+        pairsList.innerHTML = html;
+    }
+
+    renderFullList(pairs) {
+        const pairsList = document.getElementById('pairs-list');
+        
+        const pairsHTML = pairs.map((pair, index) => this.createPairItemHTML(pair, index)).join('');
+        pairsList.innerHTML = pairsHTML;
+    }
+
+    createPairItemHTML(pair, index) {
+        const isSelected = pair.symbol === this.currentSymbol;
+        const selectedClass = isSelected ? 'selected bg-primary-500/15 border-primary-500/30' : '';
+        
+        return `
+            <div class="pair-item p-3 rounded-lg cursor-pointer transition-all duration-200 hover:bg-white/5 ${selectedClass}" 
+                 data-symbol="${pair.symbol}" 
+                 data-index="${index}"
+                 onclick="dashboard.selectPair('${pair.symbol}')"
+                 style="min-height: ${this.virtualScrolling.itemHeight}px;">
+                <div class="flex items-center justify-between">
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center space-x-2 mb-1">
+                            <span class="font-bold text-white text-sm truncate">${pair.symbol}</span>
+                            <span class="category-${pair.category} px-2 py-0.5 rounded text-xs font-medium flex-shrink-0">
+                                ${pair.category.toUpperCase()}
+                            </span>
+                        </div>
+                        <div class="text-xs text-gray-400 truncate">${pair.name}</div>
+                        <div class="flex items-center space-x-3 mt-1 text-xs">
+                            <span class="text-gray-500">Digits: ${pair.digits}</span>
+                            <span class="text-gray-500">Min: ${pair.min_lot}</span>
+                        </div>
+                    </div>
+                    <div class="text-right flex-shrink-0 ml-2">
+                        <div class="text-yellow-400 font-medium text-sm">${pair.spread.toFixed(1)}</div>
+                        <div class="text-xs text-gray-500">pips</div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    handleVirtualScroll(event) {
+        // Throttle scroll events for performance
+        if (this.scrollTimeout) return;
+        
+        this.scrollTimeout = setTimeout(() => {
+            if (this.filteredPairs.length > 50) {
+                this.displayPairsWithVirtualScrolling(this.filteredPairs);
+            }
+            this.scrollTimeout = null;
+        }, 16); // ~60fps
+    }
+
+    showPairsLoading() {
+        const pairsList = document.getElementById('pairs-list');
+        if (!pairsList) return;
+        
+        pairsList.innerHTML = `
+            <div class="text-center text-gray-400 py-8">
+                <div class="animate-spin w-8 h-8 border-2 border-primary-500 border-t-transparent rounded-full mx-auto mb-3"></div>
+                <p class="font-medium text-sm">Loading trading pairs...</p>
+                <p class="text-xs">Fetching data from MT5...</p>
+            </div>
+        `;
+    }
+
     showPairsError(message) {
         const pairsList = document.getElementById('pairs-list');
         if (!pairsList) return;
         
         pairsList.innerHTML = `
-            <div class="text-center text-red-400 py-6">
-                <i data-lucide="alert-circle" class="w-8 h-8 mx-auto mb-2"></i>
+            <div class="text-center text-red-400 py-8">
+                <i data-lucide="alert-circle" class="w-8 h-8 mx-auto mb-3"></i>
                 <p class="font-medium text-sm">${message}</p>
-                <button onclick="dashboard.fetchAllPairsData()" class="mt-2 px-3 py-1 bg-red-500/20 text-red-400 rounded text-xs hover:bg-red-500/30 transition-colors">
-                    Retry
+                <button onclick="dashboard.fetchAllPairsData()" class="mt-3 px-4 py-2 bg-red-500/20 text-red-400 rounded-lg text-xs hover:bg-red-500/30 transition-colors">
+                    <i data-lucide="refresh-cw" class="w-3 h-3 mr-1 inline"></i>
+                    Retry Loading
                 </button>
             </div>
         `;
@@ -477,7 +613,33 @@ class SuperTrendDashboard {
         const pairsCountElement = document.getElementById('pairs-count');
         if (pairsCountElement) {
             pairsCountElement.textContent = `${count} pairs`;
+            pairsCountElement.className = count > 0 ? 
+                'px-3 py-1 bg-green-500/20 text-green-400 rounded-lg text-sm font-medium' :
+                'px-3 py-1 bg-red-500/20 text-red-400 rounded-lg text-sm font-medium';
         }
+    }
+
+    updateCategoryStats(pairs) {
+        // Update category filter buttons with counts
+        const categoryCount = {};
+        pairs.forEach(pair => {
+            categoryCount[pair.category] = (categoryCount[pair.category] || 0) + 1;
+        });
+        
+        document.querySelectorAll('.category-filter').forEach(button => {
+            const category = button.dataset.category;
+            const count = category === 'all' ? pairs.length : (categoryCount[category] || 0);
+            
+            if (count > 0) {
+                button.innerHTML = `${button.textContent.split('(')[0].trim()} (${count})`;
+                button.disabled = false;
+                button.classList.remove('opacity-50');
+            } else if (category !== 'all') {
+                button.innerHTML = `${button.textContent.split('(')[0].trim()} (0)`;
+                button.disabled = true;
+                button.classList.add('opacity-50');
+            }
+        });
     }
 
     async selectPair(symbol) {
@@ -498,14 +660,40 @@ class SuperTrendDashboard {
         // Clear chart data for new pair
         this.clearChartData();
         
-        // Fetch new data immediately
-        await Promise.all([
-            this.fetchTickData(symbol),
-            this.fetchMarketData(symbol),
-            this.calculateSuperTrend(symbol)
-        ]);
+        // Show loading state
+        this.showPairLoadingState();
         
-        console.log(`✅ Pair selection complete: ${symbol}`);
+        // Fetch new data immediately
+        try {
+            await Promise.all([
+                this.fetchTickData(symbol),
+                this.fetchMarketData(symbol),
+                this.calculateSuperTrend(symbol)
+            ]);
+            
+            console.log(`✅ Pair selection complete: ${symbol}`);
+        } catch (error) {
+            console.error(`❌ Error loading data for ${symbol}:`, error);
+            this.showPairErrorState(symbol);
+        }
+    }
+
+    showPairLoadingState() {
+        // Show loading indicators
+        this.updateElement('current-price', 'Loading...');
+        this.updateElement('bid-price', '--');
+        this.updateElement('ask-price', '--');
+        this.updateElement('spread', '--');
+        this.updateElement('volume', '--');
+    }
+
+    showPairErrorState(symbol) {
+        // Show error indicators
+        this.updateElement('current-price', 'Error');
+        this.updateElement('bid-price', 'N/A');
+        this.updateElement('ask-price', 'N/A');
+        this.updateElement('spread', 'N/A');
+        this.updateElement('volume', 'N/A');
     }
 
     highlightSelectedPair() {
@@ -518,6 +706,9 @@ class SuperTrendDashboard {
         const selectedItem = document.querySelector(`[data-symbol="${this.currentSymbol}"]`);
         if (selectedItem) {
             selectedItem.classList.add('selected', 'bg-primary-500/15', 'border-primary-500/30');
+            
+            // Scroll into view if needed
+            selectedItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         }
     }
 
@@ -534,8 +725,9 @@ class SuperTrendDashboard {
         document.getElementById('pair-spread').textContent = `${pair.spread.toFixed(1)} pips`;
         document.getElementById('pair-category').textContent = pair.category.charAt(0).toUpperCase() + pair.category.slice(1);
         
-        // Show the panel
+        // Show the panel with animation
         infoPanel.classList.remove('hidden');
+        infoPanel.classList.add('animate-fade-in');
     }
 
     updateCurrentSymbolDisplay(symbol) {
@@ -575,7 +767,7 @@ class SuperTrendDashboard {
         }
         
         try {
-            const response = await fetch(`/api/tick?symbol=${targetSymbol}`);
+            const response = await fetch(`/api/tick?symbol=${encodeURIComponent(targetSymbol)}`);
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}`);
             }
@@ -620,8 +812,33 @@ class SuperTrendDashboard {
         this.updateElement('spread', `${(spread * Math.pow(10, digits - 1)).toFixed(1)} pips`);
         this.updateElement('volume', this.formatVolume(tickData.volume || 0));
         
+        // Update price change indicator
+        this.updatePriceChangeIndicator(currentPrice);
+        
         // Update last update time
         this.updateElement('last-update', new Date().toLocaleTimeString());
+    }
+
+    updatePriceChangeIndicator(currentPrice) {
+        const priceChangeElement = document.getElementById('price-change');
+        if (!priceChangeElement) return;
+        
+        // Simple price change calculation (you can enhance this with historical data)
+        const change = 0.0012; // Placeholder - implement actual calculation
+        const changePercent = 0.11; // Placeholder - implement actual calculation
+        
+        const isPositive = change >= 0;
+        const icon = isPositive ? 'trending-up' : 'trending-down';
+        const colorClass = isPositive ? 'text-primary-500' : 'text-red-500';
+        const sign = isPositive ? '+' : '';
+        
+        priceChangeElement.className = `flex items-center justify-end text-sm ${colorClass}`;
+        priceChangeElement.innerHTML = `
+            <i data-lucide="${icon}" class="w-4 h-4 mr-1"></i>
+            <span class="font-medium">${sign}${change.toFixed(4)} (${sign}${changePercent.toFixed(2)}%)</span>
+        `;
+        
+        lucide.createIcons();
     }
 
     getSymbolDigits(symbol) {
@@ -651,7 +868,7 @@ class SuperTrendDashboard {
         }
         
         try {
-            const response = await fetch(`/api/market-data?symbol=${targetSymbol}&timeframe=M15&count=100`);
+            const response = await fetch(`/api/market-data?symbol=${encodeURIComponent(targetSymbol)}&timeframe=M15&count=100`);
             if (!response.ok) {
                 throw new Error(`HTTP ${response.status}`);
             }
@@ -1073,6 +1290,19 @@ class SuperTrendDashboard {
         
         // Clear chart
         this.clearChartData();
+        
+        // Reset filters
+        this.selectedCategory = 'all';
+        this.searchTerm = '';
+        const searchInput = document.getElementById('pair-search');
+        if (searchInput) searchInput.value = '';
+        
+        // Reset category filters
+        document.querySelectorAll('.category-filter').forEach(btn => {
+            btn.classList.remove('active', 'bg-primary-500', 'text-white');
+            btn.classList.add('glass', 'text-gray-300');
+        });
+        document.querySelector('[data-category="all"]')?.classList.add('active', 'bg-primary-500', 'text-white');
         
         // Restart data fetching
         this.startDataFetching();
