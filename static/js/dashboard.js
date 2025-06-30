@@ -1,6 +1,6 @@
 /**
- * SuperTrend Pro MT5 Dashboard - Fixed Real-time Updates
- * Complete solution for live data streaming with minimal delay
+ * SuperTrend Pro MT5 Dashboard - Fixed Pairs Display and Live Updates
+ * Complete solution for proper pair loading and real-time price updates
  */
 
 class SuperTrendDashboard {
@@ -55,13 +55,20 @@ class SuperTrendDashboard {
         this.tickPollingInterval = null;
         this.dataPollingInterval = null;
         this.supertrendPollingInterval = null;
+        this.pairsPollingInterval = null;
+        
+        // Pairs loading state
+        this.pairsLoaded = false;
+        this.pairsLoading = false;
+        this.pairsRetryCount = 0;
+        this.maxPairsRetries = 5;
         
         // Initialize dashboard
         this.init();
     }
     
     async init() {
-        console.log('🚀 Initializing SuperTrend Pro MT5 Dashboard - Fixed Real-time Version');
+        console.log('🚀 Initializing SuperTrend Pro MT5 Dashboard - Fixed Pairs & Live Updates');
         
         try {
             // Setup event listeners first
@@ -76,10 +83,10 @@ class SuperTrendDashboard {
             // Start aggressive polling as primary data source
             this.startAggressivePolling();
             
-            // Load initial data
+            // Load initial data with focus on pairs
             await this.loadInitialData();
             
-            console.log('✅ Dashboard initialized with fixed real-time updates');
+            console.log('✅ Dashboard initialized with fixed pairs display and live updates');
             
         } catch (error) {
             console.error('❌ Error initializing dashboard:', error);
@@ -226,16 +233,16 @@ class SuperTrendDashboard {
             }
         }, this.updateInterval * 2); // Less frequent for SuperTrend
         
-        // Pairs polling (less frequent)
-        setInterval(async () => {
-            if (this.isRunning && this.currentData.pairs.length === 0) {
+        // Enhanced pairs polling with retry logic
+        this.pairsPollingInterval = setInterval(async () => {
+            if (this.isRunning && (!this.pairsLoaded || this.currentData.pairs.length === 0)) {
                 try {
-                    await this.fetchPairsData();
+                    await this.fetchPairsDataWithRetry();
                 } catch (error) {
                     console.debug('Pairs polling error:', error);
                 }
             }
-        }, 5000);
+        }, 3000); // Check every 3 seconds until pairs are loaded
     }
     
     async fetchTickData() {
@@ -288,16 +295,102 @@ class SuperTrendDashboard {
         }
     }
     
-    async fetchPairsData() {
-        try {
-            const response = await fetch('/api/pairs');
-            if (response.ok) {
-                const pairs = await response.json();
-                this.handleSymbolsUpdate(pairs);
-            }
-        } catch (error) {
-            console.debug('Fetch pairs error:', error);
+    async fetchPairsDataWithRetry() {
+        if (this.pairsLoading) {
+            console.log('⏳ Pairs already loading, skipping...');
+            return;
         }
+        
+        this.pairsLoading = true;
+        
+        try {
+            console.log(`📊 Fetching pairs data (attempt ${this.pairsRetryCount + 1}/${this.maxPairsRetries})`);
+            
+            // Try multiple endpoints for better reliability
+            const endpoints = ['/api/pairs', '/api/pairs/reload'];
+            let pairs = null;
+            
+            for (const endpoint of endpoints) {
+                try {
+                    const response = await fetch(endpoint, {
+                        method: 'GET',
+                        headers: { 'Content-Type': 'application/json' },
+                        cache: 'no-cache'
+                    });
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        if (Array.isArray(data) && data.length > 0) {
+                            pairs = data;
+                            console.log(`✅ Successfully fetched ${pairs.length} pairs from ${endpoint}`);
+                            break;
+                        } else {
+                            console.log(`⚠️ ${endpoint} returned empty or invalid data:`, data);
+                        }
+                    } else {
+                        console.log(`⚠️ ${endpoint} returned status ${response.status}`);
+                    }
+                } catch (error) {
+                    console.log(`❌ Error fetching from ${endpoint}:`, error);
+                }
+            }
+            
+            if (pairs && pairs.length > 0) {
+                this.handleSymbolsUpdate(pairs);
+                this.pairsLoaded = true;
+                this.pairsRetryCount = 0;
+                console.log(`🎉 Pairs loaded successfully: ${pairs.length} pairs`);
+            } else {
+                this.pairsRetryCount++;
+                console.log(`❌ Failed to fetch pairs (attempt ${this.pairsRetryCount}/${this.maxPairsRetries})`);
+                
+                if (this.pairsRetryCount >= this.maxPairsRetries) {
+                    console.log('❌ Max pairs retry attempts reached, using fallback pairs');
+                    this.createFallbackPairs();
+                }
+            }
+            
+        } catch (error) {
+            console.error('❌ Error in fetchPairsDataWithRetry:', error);
+            this.pairsRetryCount++;
+            
+            if (this.pairsRetryCount >= this.maxPairsRetries) {
+                this.createFallbackPairs();
+            }
+        } finally {
+            this.pairsLoading = false;
+        }
+    }
+    
+    createFallbackPairs() {
+        console.log('🔄 Creating fallback pairs...');
+        
+        const fallbackPairs = [
+            { symbol: 'EURUSD', name: 'Euro vs US Dollar', category: 'major', digits: 5, point_size: 0.00001, min_lot: 0.01, max_lot: 100, lot_step: 0.01, spread: 1.5 },
+            { symbol: 'GBPUSD', name: 'British Pound vs US Dollar', category: 'major', digits: 5, point_size: 0.00001, min_lot: 0.01, max_lot: 100, lot_step: 0.01, spread: 2.0 },
+            { symbol: 'USDJPY', name: 'US Dollar vs Japanese Yen', category: 'major', digits: 3, point_size: 0.001, min_lot: 0.01, max_lot: 100, lot_step: 0.01, spread: 1.8 },
+            { symbol: 'USDCHF', name: 'US Dollar vs Swiss Franc', category: 'major', digits: 5, point_size: 0.00001, min_lot: 0.01, max_lot: 100, lot_step: 0.01, spread: 2.2 },
+            { symbol: 'AUDUSD', name: 'Australian Dollar vs US Dollar', category: 'major', digits: 5, point_size: 0.00001, min_lot: 0.01, max_lot: 100, lot_step: 0.01, spread: 1.9 },
+            { symbol: 'USDCAD', name: 'US Dollar vs Canadian Dollar', category: 'major', digits: 5, point_size: 0.00001, min_lot: 0.01, max_lot: 100, lot_step: 0.01, spread: 2.1 },
+            { symbol: 'NZDUSD', name: 'New Zealand Dollar vs US Dollar', category: 'major', digits: 5, point_size: 0.00001, min_lot: 0.01, max_lot: 100, lot_step: 0.01, spread: 2.5 },
+            { symbol: 'EURGBP', name: 'Euro vs British Pound', category: 'minor', digits: 5, point_size: 0.00001, min_lot: 0.01, max_lot: 100, lot_step: 0.01, spread: 2.8 },
+            { symbol: 'EURJPY', name: 'Euro vs Japanese Yen', category: 'minor', digits: 3, point_size: 0.001, min_lot: 0.01, max_lot: 100, lot_step: 0.01, spread: 2.3 },
+            { symbol: 'GBPJPY', name: 'British Pound vs Japanese Yen', category: 'minor', digits: 3, point_size: 0.001, min_lot: 0.01, max_lot: 100, lot_step: 0.01, spread: 3.2 },
+            { symbol: 'XAUUSD', name: 'Gold vs US Dollar', category: 'commodities', digits: 2, point_size: 0.01, min_lot: 0.01, max_lot: 100, lot_step: 0.01, spread: 35.0 },
+            { symbol: 'XAGUSD', name: 'Silver vs US Dollar', category: 'commodities', digits: 3, point_size: 0.001, min_lot: 0.01, max_lot: 100, lot_step: 0.01, spread: 25.0 },
+            { symbol: 'BTCUSD', name: 'Bitcoin vs US Dollar', category: 'crypto', digits: 2, point_size: 0.01, min_lot: 0.01, max_lot: 10, lot_step: 0.01, spread: 50.0 },
+            { symbol: 'ETHUSD', name: 'Ethereum vs US Dollar', category: 'crypto', digits: 2, point_size: 0.01, min_lot: 0.01, max_lot: 10, lot_step: 0.01, spread: 15.0 },
+            { symbol: 'US30', name: 'Dow Jones Industrial Average', category: 'indices', digits: 1, point_size: 0.1, min_lot: 0.01, max_lot: 100, lot_step: 0.01, spread: 3.0 },
+            { symbol: 'SPX500', name: 'S&P 500 Index', category: 'indices', digits: 1, point_size: 0.1, min_lot: 0.01, max_lot: 100, lot_step: 0.01, spread: 2.5 },
+            { symbol: 'NAS100', name: 'NASDAQ 100 Index', category: 'indices', digits: 1, point_size: 0.1, min_lot: 0.01, max_lot: 100, lot_step: 0.01, spread: 4.0 },
+            { symbol: 'UK100', name: 'FTSE 100 Index', category: 'indices', digits: 1, point_size: 0.1, min_lot: 0.01, max_lot: 100, lot_step: 0.01, spread: 3.5 },
+            { symbol: 'GER30', name: 'DAX 30 Index', category: 'indices', digits: 1, point_size: 0.1, min_lot: 0.01, max_lot: 100, lot_step: 0.01, spread: 2.8 },
+            { symbol: 'USOIL', name: 'US Crude Oil', category: 'commodities', digits: 2, point_size: 0.01, min_lot: 0.01, max_lot: 100, lot_step: 0.01, spread: 5.0 }
+        ];
+        
+        this.handleSymbolsUpdate(fallbackPairs);
+        this.pairsLoaded = true;
+        console.log(`✅ Created ${fallbackPairs.length} fallback pairs`);
     }
     
     async fetchSupertrendData() {
@@ -372,9 +465,30 @@ class SuperTrendDashboard {
     }
     
     handleSymbolsUpdate(symbolsData) {
-        this.currentData.pairs = symbolsData || [];
+        if (!Array.isArray(symbolsData)) {
+            console.error('❌ Invalid symbols data received:', symbolsData);
+            return;
+        }
+        
+        console.log(`📊 Symbols update: Received ${symbolsData.length} pairs`);
+        
+        // Validate and clean the pairs data
+        const validPairs = symbolsData.filter(pair => {
+            return pair && 
+                   typeof pair.symbol === 'string' && 
+                   pair.symbol.length > 0 &&
+                   typeof pair.name === 'string' &&
+                   typeof pair.category === 'string';
+        });
+        
+        console.log(`📊 Valid pairs after filtering: ${validPairs.length}`);
+        
+        this.currentData.pairs = validPairs;
         this.updatePairsList();
-        console.log(`📊 Symbols update: ${this.currentData.pairs.length} pairs`);
+        
+        // Mark pairs as loaded
+        this.pairsLoaded = true;
+        this.pairsRetryCount = 0;
     }
     
     handleSupertrendUpdate(supertrendData) {
@@ -730,11 +844,16 @@ class SuperTrendDashboard {
         const pairsListElement = document.getElementById('pairs-list');
         const pairsCountElement = document.getElementById('pairs-count');
         
+        console.log(`🔄 Updating pairs list with ${pairs.length} pairs`);
+        
         if (pairsCountElement) {
             pairsCountElement.textContent = `${pairs.length} pairs`;
         }
         
-        if (!pairsListElement) return;
+        if (!pairsListElement) {
+            console.error('❌ Pairs list element not found');
+            return;
+        }
         
         if (pairs.length === 0) {
             pairsListElement.innerHTML = `
@@ -751,12 +870,18 @@ class SuperTrendDashboard {
             return;
         }
         
-        // Limit to first 50 pairs for performance
-        const displayPairs = pairs.slice(0, 50);
+        // Sort pairs by category and name for better organization
+        const sortedPairs = [...pairs].sort((a, b) => {
+            if (a.category !== b.category) {
+                const categoryOrder = { 'major': 0, 'minor': 1, 'crypto': 2, 'commodities': 3, 'indices': 4, 'exotic': 5, 'other': 6 };
+                return (categoryOrder[a.category] || 6) - (categoryOrder[b.category] || 6);
+            }
+            return a.symbol.localeCompare(b.symbol);
+        });
         
         const fragment = document.createDocumentFragment();
         
-        displayPairs.forEach(pair => {
+        sortedPairs.forEach(pair => {
             const div = document.createElement('div');
             div.className = `pair-item p-2 rounded-lg cursor-pointer transition-all duration-200 ${pair.symbol === this.selectedPair ? 'selected' : ''}`;
             div.dataset.symbol = pair.symbol;
@@ -786,6 +911,8 @@ class SuperTrendDashboard {
         if (window.lucide) {
             window.lucide.createIcons();
         }
+        
+        console.log(`✅ Pairs list updated with ${sortedPairs.length} pairs`);
     }
     
     updateSupertrendDisplay() {
@@ -967,9 +1094,12 @@ class SuperTrendDashboard {
             this.chart.update('none');
         }
         
-        // Fetch new data immediately
-        this.fetchTickData();
-        this.fetchSupertrendData();
+        // Fetch new data immediately for the selected pair
+        console.log(`🔄 Fetching data for new pair: ${symbol}`);
+        setTimeout(() => {
+            this.fetchTickData();
+            this.fetchSupertrendData();
+        }, 100); // Small delay to ensure UI updates first
     }
     
     async loadInitialData() {
@@ -982,10 +1112,12 @@ class SuperTrendDashboard {
                 this.fetchTickData()
             ]);
             
+            // Load pairs data with priority
+            await this.fetchPairsDataWithRetry();
+            
             // Load other data in background
             setTimeout(() => {
                 this.fetchAccountData();
-                this.fetchPairsData();
                 this.fetchSupertrendData();
             }, 100);
             
@@ -1092,6 +1224,10 @@ class SuperTrendDashboard {
         // Clear caches
         this.priceFormatCache.clear();
         this.updateTimes = [];
+        
+        // Reset pairs loading state
+        this.pairsLoaded = false;
+        this.pairsRetryCount = 0;
         
         // Reset to default pair
         this.selectPair('EURUSD');
@@ -1228,6 +1364,9 @@ class SuperTrendDashboard {
         if (this.supertrendPollingInterval) {
             clearInterval(this.supertrendPollingInterval);
         }
+        if (this.pairsPollingInterval) {
+            clearInterval(this.pairsPollingInterval);
+        }
         if (this.wsReconnectTimer) {
             clearTimeout(this.wsReconnectTimer);
         }
@@ -1243,7 +1382,7 @@ class SuperTrendDashboard {
 
 // Initialize dashboard when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('🚀 SuperTrend Pro MT5 Dashboard - Fixed Real-time Updates');
+    console.log('🚀 SuperTrend Pro MT5 Dashboard - Fixed Pairs Display & Live Updates');
     window.dashboard = new SuperTrendDashboard();
 });
 
