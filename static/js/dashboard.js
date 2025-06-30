@@ -1,1167 +1,635 @@
 /**
- * SuperTrend Pro MT5 Dashboard - Fixed Pairs Display and Live Updates
- * Complete solution for proper pair loading and real-time price updates
+ * SuperTrend Pro MT5 Dashboard - Enhanced JavaScript
+ * Fixed to display ALL pairs from MT5 without hardcoding
+ * Optimized for real-time updates and better performance
  */
 
 class SuperTrendDashboard {
     constructor() {
-        // Optimized settings for real-time updates
-        this.updateInterval = 1000; // 1 second for general updates
-        this.fastTickInterval = 500; // 500ms for tick updates
-        this.reconnectDelay = 2000; // 2 seconds for reconnection
-        this.maxRetries = 10;
-        this.retryCount = 0;
-        
-        // WebSocket connection for real-time data
         this.ws = null;
-        this.wsReconnectTimer = null;
         this.isConnected = false;
+        this.currentSymbol = 'EURUSD';
+        this.isRunning = true;
+        this.chart = null;
+        this.allPairs = [];
+        this.filteredPairs = [];
+        this.selectedCategory = 'all';
+        this.searchTerm = '';
         
-        // Data management with caching
-        this.currentData = {
-            connection: { is_connected: false, connection_type: 'connecting' },
-            pairs: [],
-            tick: null,
-            account: {},
-            positions: [],
-            orders: [],
-            supertrend: null
+        // Performance optimization
+        this.updateIntervals = {
+            tick: 500,        // 0.5 seconds for tick data
+            connection: 2000, // 2 seconds for connection status
+            pairs: 10000,     // 10 seconds for pairs refresh
+            market: 1000      // 1 second for market data
         };
         
-        // Chart instance
-        this.chart = null;
-        this.chartData = [];
-        this.maxChartPoints = 100;
+        this.lastUpdates = {
+            tick: 0,
+            connection: 0,
+            pairs: 0,
+            market: 0
+        };
         
-        // UI state
-        this.selectedPair = 'EURUSD';
-        this.isRunning = true;
-        this.lastUpdateTime = null;
+        // Data caching
+        this.cache = {
+            pairs: null,
+            connection: null,
+            marketData: new Map(),
+            tickData: new Map()
+        };
         
-        // Performance monitoring
-        this.updateTimes = [];
-        this.avgUpdateTime = 0;
-        this.lastTickTime = 0;
-        
-        // Price formatting cache
-        this.priceFormatCache = new Map();
-        this.formatCacheSize = 1000;
-        
-        // Update throttling
-        this.lastUIUpdate = 0;
-        this.uiUpdateThrottle = 50; // 50ms minimum between UI updates
-        
-        // Polling intervals
-        this.tickPollingInterval = null;
-        this.dataPollingInterval = null;
-        this.supertrendPollingInterval = null;
-        this.pairsPollingInterval = null;
-        
-        // Pairs loading state
-        this.pairsLoaded = false;
-        this.pairsLoading = false;
-        this.pairsRetryCount = 0;
-        this.maxPairsRetries = 5;
-        
-        // Initialize dashboard
         this.init();
     }
-    
+
     async init() {
-        console.log('🚀 Initializing SuperTrend Pro MT5 Dashboard - Fixed Pairs & Live Updates');
+        console.log('🚀 Initializing SuperTrend Pro MT5 Dashboard');
         
-        try {
-            // Setup event listeners first
-            this.setupEventListeners();
-            
-            // Initialize chart
-            this.initializeChart();
-            
-            // Start WebSocket connection
-            this.connectWebSocket();
-            
-            // Start aggressive polling as primary data source
-            this.startAggressivePolling();
-            
-            // Load initial data with focus on pairs
-            await this.loadInitialData();
-            
-            console.log('✅ Dashboard initialized with fixed pairs display and live updates');
-            
-        } catch (error) {
-            console.error('❌ Error initializing dashboard:', error);
-            this.showError('Failed to initialize dashboard');
-        }
+        this.setupEventListeners();
+        this.initializeChart();
+        
+        // Start data fetching immediately
+        await this.startDataFetching();
+        
+        // Initialize WebSocket connection
+        this.initWebSocket();
+        
+        console.log('✅ Dashboard initialized successfully');
     }
-    
-    connectWebSocket() {
-        try {
-            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-            const wsUrl = `${protocol}//${window.location.host}/ws`;
-            
-            console.log('🔌 Connecting to WebSocket:', wsUrl);
-            
-            this.ws = new WebSocket(wsUrl);
-            
-            this.ws.onopen = () => {
-                console.log('✅ WebSocket connected');
-                this.isConnected = true;
-                this.retryCount = 0;
-                
-                // Subscribe to all events
-                this.ws.send(JSON.stringify({
-                    type: 'subscribe',
-                    events: ['tick', 'connection', 'account_info', 'positions', 'orders', 'symbols', 'supertrend_update']
-                }));
-                
-                this.updateConnectionStatus(true);
-            };
-            
-            this.ws.onmessage = (event) => {
-                try {
-                    const message = JSON.parse(event.data);
-                    this.handleWebSocketMessage(message);
-                } catch (error) {
-                    console.debug('WebSocket message parse error:', error);
-                }
-            };
-            
-            this.ws.onclose = () => {
-                console.log('🔌 WebSocket disconnected');
-                this.isConnected = false;
-                this.updateConnectionStatus(false);
-                this.scheduleReconnect();
-            };
-            
-            this.ws.onerror = (error) => {
-                console.debug('WebSocket error:', error);
-                this.isConnected = false;
-                this.updateConnectionStatus(false);
-            };
-            
-        } catch (error) {
-            console.error('❌ Error creating WebSocket:', error);
-            this.scheduleReconnect();
-        }
-    }
-    
-    scheduleReconnect() {
-        if (this.retryCount < this.maxRetries) {
-            this.retryCount++;
-            const delay = Math.min(this.reconnectDelay * this.retryCount, 10000);
-            
-            console.log(`🔄 Scheduling WebSocket reconnect in ${delay}ms (attempt ${this.retryCount})`);
-            
-            this.wsReconnectTimer = setTimeout(() => {
-                this.connectWebSocket();
-            }, delay);
-        }
-    }
-    
-    handleWebSocketMessage(message) {
-        try {
-            switch (message.type) {
-                case 'tick':
-                    this.handleTickUpdate(message.data);
-                    break;
-                case 'connection':
-                    this.handleConnectionUpdate(message.data);
-                    break;
-                case 'account_info':
-                    this.handleAccountUpdate(message.data);
-                    break;
-                case 'positions':
-                    this.handlePositionsUpdate(message.data);
-                    break;
-                case 'orders':
-                    this.handleOrdersUpdate(message.data);
-                    break;
-                case 'symbols':
-                    this.handleSymbolsUpdate(message.data);
-                    break;
-                case 'supertrend_update':
-                    this.handleSupertrendUpdate(message.data);
-                    break;
-                case 'connection_status':
-                    this.updateConnectionStatus(message.data.is_connected);
-                    break;
-            }
-        } catch (error) {
-            console.debug('Error handling WebSocket message:', error);
-        }
-    }
-    
-    startAggressivePolling() {
-        console.log('🔄 Starting aggressive polling for real-time updates');
-        
-        // Ultra-fast tick polling
-        this.tickPollingInterval = setInterval(async () => {
-            if (this.isRunning) {
-                try {
-                    await this.fetchTickData();
-                } catch (error) {
-                    console.debug('Tick polling error:', error);
-                }
-            }
-        }, this.fastTickInterval);
-        
-        // Regular data polling
-        this.dataPollingInterval = setInterval(async () => {
-            if (this.isRunning) {
-                try {
-                    // Fetch multiple data sources concurrently
-                    const promises = [
-                        this.fetchConnectionStatus(),
-                        this.fetchAccountData()
-                    ];
-                    
-                    await Promise.allSettled(promises);
-                } catch (error) {
-                    console.debug('Data polling error:', error);
-                }
-            }
-        }, this.updateInterval);
-        
-        // SuperTrend calculation polling
-        this.supertrendPollingInterval = setInterval(async () => {
-            if (this.isRunning) {
-                try {
-                    await this.fetchSupertrendData();
-                } catch (error) {
-                    console.debug('SuperTrend polling error:', error);
-                }
-            }
-        }, this.updateInterval * 2); // Less frequent for SuperTrend
-        
-        // Enhanced pairs polling with retry logic
-        this.pairsPollingInterval = setInterval(async () => {
-            if (this.isRunning && (!this.pairsLoaded || this.currentData.pairs.length === 0)) {
-                try {
-                    await this.fetchPairsDataWithRetry();
-                } catch (error) {
-                    console.debug('Pairs polling error:', error);
-                }
-            }
-        }, 3000); // Check every 3 seconds until pairs are loaded
-    }
-    
-    async fetchTickData() {
-        try {
-            const response = await fetch(`/api/tick?symbol=${this.selectedPair}`, {
-                method: 'GET',
-                headers: { 'Content-Type': 'application/json' }
-            });
-            
-            if (response.ok) {
-                const tickData = await response.json();
-                if (tickData && !tickData.error) {
-                    this.handleTickUpdate(tickData);
-                }
-            }
-        } catch (error) {
-            console.debug('Fetch tick error:', error);
-        }
-    }
-    
-    async fetchConnectionStatus() {
-        try {
-            const response = await fetch('/api/connection');
-            if (response.ok) {
-                const data = await response.json();
-                this.handleConnectionUpdate(data);
-            }
-        } catch (error) {
-            console.debug('Fetch connection error:', error);
-        }
-    }
-    
-    async fetchAccountData() {
-        try {
-            const response = await fetch('/api/account-summary');
-            if (response.ok) {
-                const data = await response.json();
-                if (data.account) {
-                    this.handleAccountUpdate(data.account);
-                }
-                if (data.positions) {
-                    this.handlePositionsUpdate(data.positions);
-                }
-                if (data.orders) {
-                    this.handleOrdersUpdate(data.orders);
-                }
-            }
-        } catch (error) {
-            console.debug('Fetch account error:', error);
-        }
-    }
-    
-    async fetchPairsDataWithRetry() {
-        if (this.pairsLoading) {
-            console.log('⏳ Pairs already loading, skipping...');
-            return;
-        }
-        
-        this.pairsLoading = true;
-        
-        try {
-            console.log(`📊 Fetching pairs data (attempt ${this.pairsRetryCount + 1}/${this.maxPairsRetries})`);
-            
-            // Try multiple endpoints for better reliability
-            const endpoints = ['/api/pairs', '/api/pairs/reload'];
-            let pairs = null;
-            
-            for (const endpoint of endpoints) {
-                try {
-                    const response = await fetch(endpoint, {
-                        method: 'GET',
-                        headers: { 'Content-Type': 'application/json' },
-                        cache: 'no-cache'
-                    });
-                    
-                    if (response.ok) {
-                        const data = await response.json();
-                        if (Array.isArray(data) && data.length > 0) {
-                            pairs = data;
-                            console.log(`✅ Successfully fetched ${pairs.length} pairs from ${endpoint}`);
-                            break;
-                        } else {
-                            console.log(`⚠️ ${endpoint} returned empty or invalid data:`, data);
-                        }
-                    } else {
-                        console.log(`⚠️ ${endpoint} returned status ${response.status}`);
-                    }
-                } catch (error) {
-                    console.log(`❌ Error fetching from ${endpoint}:`, error);
-                }
-            }
-            
-            if (pairs && pairs.length > 0) {
-                this.handleSymbolsUpdate(pairs);
-                this.pairsLoaded = true;
-                this.pairsRetryCount = 0;
-                console.log(`🎉 Pairs loaded successfully: ${pairs.length} pairs`);
-            } else {
-                this.pairsRetryCount++;
-                console.log(`❌ Failed to fetch pairs (attempt ${this.pairsRetryCount}/${this.maxPairsRetries})`);
-                
-                if (this.pairsRetryCount >= this.maxPairsRetries) {
-                    console.log('❌ Max pairs retry attempts reached, using fallback pairs');
-                    this.createFallbackPairs();
-                }
-            }
-            
-        } catch (error) {
-            console.error('❌ Error in fetchPairsDataWithRetry:', error);
-            this.pairsRetryCount++;
-            
-            if (this.pairsRetryCount >= this.maxPairsRetries) {
-                this.createFallbackPairs();
-            }
-        } finally {
-            this.pairsLoading = false;
-        }
-    }
-    
-    createFallbackPairs() {
-        console.log('🔄 Creating fallback pairs...');
-        
-        const fallbackPairs = [
-            { symbol: 'EURUSD', name: 'Euro vs US Dollar', category: 'major', digits: 5, point_size: 0.00001, min_lot: 0.01, max_lot: 100, lot_step: 0.01, spread: 1.5 },
-            { symbol: 'GBPUSD', name: 'British Pound vs US Dollar', category: 'major', digits: 5, point_size: 0.00001, min_lot: 0.01, max_lot: 100, lot_step: 0.01, spread: 2.0 },
-            { symbol: 'USDJPY', name: 'US Dollar vs Japanese Yen', category: 'major', digits: 3, point_size: 0.001, min_lot: 0.01, max_lot: 100, lot_step: 0.01, spread: 1.8 },
-            { symbol: 'USDCHF', name: 'US Dollar vs Swiss Franc', category: 'major', digits: 5, point_size: 0.00001, min_lot: 0.01, max_lot: 100, lot_step: 0.01, spread: 2.2 },
-            { symbol: 'AUDUSD', name: 'Australian Dollar vs US Dollar', category: 'major', digits: 5, point_size: 0.00001, min_lot: 0.01, max_lot: 100, lot_step: 0.01, spread: 1.9 },
-            { symbol: 'USDCAD', name: 'US Dollar vs Canadian Dollar', category: 'major', digits: 5, point_size: 0.00001, min_lot: 0.01, max_lot: 100, lot_step: 0.01, spread: 2.1 },
-            { symbol: 'NZDUSD', name: 'New Zealand Dollar vs US Dollar', category: 'major', digits: 5, point_size: 0.00001, min_lot: 0.01, max_lot: 100, lot_step: 0.01, spread: 2.5 },
-            { symbol: 'EURGBP', name: 'Euro vs British Pound', category: 'minor', digits: 5, point_size: 0.00001, min_lot: 0.01, max_lot: 100, lot_step: 0.01, spread: 2.8 },
-            { symbol: 'EURJPY', name: 'Euro vs Japanese Yen', category: 'minor', digits: 3, point_size: 0.001, min_lot: 0.01, max_lot: 100, lot_step: 0.01, spread: 2.3 },
-            { symbol: 'GBPJPY', name: 'British Pound vs Japanese Yen', category: 'minor', digits: 3, point_size: 0.001, min_lot: 0.01, max_lot: 100, lot_step: 0.01, spread: 3.2 },
-            { symbol: 'XAUUSD', name: 'Gold vs US Dollar', category: 'commodities', digits: 2, point_size: 0.01, min_lot: 0.01, max_lot: 100, lot_step: 0.01, spread: 35.0 },
-            { symbol: 'XAGUSD', name: 'Silver vs US Dollar', category: 'commodities', digits: 3, point_size: 0.001, min_lot: 0.01, max_lot: 100, lot_step: 0.01, spread: 25.0 },
-            { symbol: 'BTCUSD', name: 'Bitcoin vs US Dollar', category: 'crypto', digits: 2, point_size: 0.01, min_lot: 0.01, max_lot: 10, lot_step: 0.01, spread: 50.0 },
-            { symbol: 'ETHUSD', name: 'Ethereum vs US Dollar', category: 'crypto', digits: 2, point_size: 0.01, min_lot: 0.01, max_lot: 10, lot_step: 0.01, spread: 15.0 },
-            { symbol: 'US30', name: 'Dow Jones Industrial Average', category: 'indices', digits: 1, point_size: 0.1, min_lot: 0.01, max_lot: 100, lot_step: 0.01, spread: 3.0 },
-            { symbol: 'SPX500', name: 'S&P 500 Index', category: 'indices', digits: 1, point_size: 0.1, min_lot: 0.01, max_lot: 100, lot_step: 0.01, spread: 2.5 },
-            { symbol: 'NAS100', name: 'NASDAQ 100 Index', category: 'indices', digits: 1, point_size: 0.1, min_lot: 0.01, max_lot: 100, lot_step: 0.01, spread: 4.0 },
-            { symbol: 'UK100', name: 'FTSE 100 Index', category: 'indices', digits: 1, point_size: 0.1, min_lot: 0.01, max_lot: 100, lot_step: 0.01, spread: 3.5 },
-            { symbol: 'GER30', name: 'DAX 30 Index', category: 'indices', digits: 1, point_size: 0.1, min_lot: 0.01, max_lot: 100, lot_step: 0.01, spread: 2.8 },
-            { symbol: 'USOIL', name: 'US Crude Oil', category: 'commodities', digits: 2, point_size: 0.01, min_lot: 0.01, max_lot: 100, lot_step: 0.01, spread: 5.0 }
-        ];
-        
-        this.handleSymbolsUpdate(fallbackPairs);
-        this.pairsLoaded = true;
-        console.log(`✅ Created ${fallbackPairs.length} fallback pairs`);
-    }
-    
-    async fetchSupertrendData() {
-        try {
-            const response = await fetch(`/api/calculate`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    symbol: this.selectedPair,
-                    timeframe: 'M15'
-                })
-            });
-            
-            if (response.ok) {
-                const data = await response.json();
-                if (data.status === 'success' && data.result) {
-                    this.handleSupertrendUpdate(data.result);
-                }
-            }
-        } catch (error) {
-            console.debug('Fetch SuperTrend error:', error);
-        }
-    }
-    
-    handleTickUpdate(tickData) {
-        if (!tickData || !tickData.symbol) return;
-        
-        // Throttle UI updates for performance
-        const now = performance.now();
-        if (now - this.lastUIUpdate < this.uiUpdateThrottle) {
-            return;
-        }
-        this.lastUIUpdate = now;
-        
-        this.currentData.tick = tickData;
-        
-        // Update price display for selected pair
-        if (tickData.symbol === this.selectedPair) {
-            this.updatePriceDisplay(tickData);
-            this.updateChart(tickData);
-        }
-        
-        // Update last update time
-        this.lastUpdateTime = new Date();
-        this.updateLastUpdateDisplay();
-        
-        console.log(`📊 Tick update: ${tickData.symbol} = ${tickData.bid}/${tickData.ask}`);
-    }
-    
-    handleConnectionUpdate(connectionData) {
-        this.currentData.connection = connectionData;
-        this.updateConnectionDisplay();
-        console.log(`🔗 Connection update: ${connectionData.is_connected ? 'Connected' : 'Disconnected'}`);
-    }
-    
-    handleAccountUpdate(accountData) {
-        this.currentData.account = accountData;
-        this.updateAccountDisplay();
-        console.log(`💰 Account update: Balance ${accountData.balance}`);
-    }
-    
-    handlePositionsUpdate(positionsData) {
-        this.currentData.positions = positionsData || [];
-        this.updateTradingStats();
-        console.log(`📈 Positions update: ${this.currentData.positions.length} positions`);
-    }
-    
-    handleOrdersUpdate(ordersData) {
-        this.currentData.orders = ordersData || [];
-        this.updateTradingStats();
-        console.log(`📋 Orders update: ${this.currentData.orders.length} orders`);
-    }
-    
-    handleSymbolsUpdate(symbolsData) {
-        if (!Array.isArray(symbolsData)) {
-            console.error('❌ Invalid symbols data received:', symbolsData);
-            return;
-        }
-        
-        console.log(`📊 Symbols update: Received ${symbolsData.length} pairs`);
-        
-        // Validate and clean the pairs data
-        const validPairs = symbolsData.filter(pair => {
-            return pair && 
-                   typeof pair.symbol === 'string' && 
-                   pair.symbol.length > 0 &&
-                   typeof pair.name === 'string' &&
-                   typeof pair.category === 'string';
-        });
-        
-        console.log(`📊 Valid pairs after filtering: ${validPairs.length}`);
-        
-        this.currentData.pairs = validPairs;
-        this.updatePairsList();
-        
-        // Mark pairs as loaded
-        this.pairsLoaded = true;
-        this.pairsRetryCount = 0;
-    }
-    
-    handleSupertrendUpdate(supertrendData) {
-        this.currentData.supertrend = supertrendData;
-        this.updateSupertrendDisplay();
-        console.log(`📈 SuperTrend update: ${supertrendData.trend === 1 ? 'Bullish' : 'Bearish'}`);
-    }
-    
-    // Enhanced price formatting with optimized caching
-    formatPrice(price, symbol = null) {
-        if (typeof price !== 'number' || isNaN(price)) return '0.00000';
-        
-        const cacheKey = `${price.toFixed(8)}_${symbol}`;
-        if (this.priceFormatCache.has(cacheKey)) {
-            return this.priceFormatCache.get(cacheKey);
-        }
-        
-        let formatted;
-        
-        // Optimized decimal places logic
-        if (symbol && symbol.includes('JPY')) {
-            formatted = price.toFixed(3);
-        } else if (price > 10000) {
-            formatted = price.toFixed(2);
-        } else if (price > 1000) {
-            formatted = price.toFixed(3);
-        } else if (price > 100) {
-            formatted = price.toFixed(4);
-        } else {
-            formatted = price.toFixed(5);
-        }
-        
-        // Cache management
-        if (this.priceFormatCache.size >= this.formatCacheSize) {
-            const keysToDelete = Array.from(this.priceFormatCache.keys()).slice(0, 100);
-            keysToDelete.forEach(key => this.priceFormatCache.delete(key));
-        }
-        
-        this.priceFormatCache.set(cacheKey, formatted);
-        return formatted;
-    }
-    
-    updatePriceDisplay(tickData) {
-        const elements = {
-            currentPrice: document.getElementById('current-price'),
-            bidPrice: document.getElementById('bid-price'),
-            askPrice: document.getElementById('ask-price'),
-            spread: document.getElementById('spread'),
-            volume: document.getElementById('volume'),
-            priceChange: document.getElementById('price-change')
-        };
-        
-        // Use the most appropriate price for display
-        const displayPrice = tickData.last || tickData.bid || tickData.ask || 0;
-        
-        // Batch DOM updates for better performance
-        requestAnimationFrame(() => {
-            if (elements.currentPrice && displayPrice) {
-                elements.currentPrice.textContent = this.formatPrice(displayPrice, this.selectedPair);
-            }
-            
-            if (elements.bidPrice && tickData.bid) {
-                elements.bidPrice.textContent = this.formatPrice(tickData.bid, this.selectedPair);
-            }
-            
-            if (elements.askPrice && tickData.ask) {
-                elements.askPrice.textContent = this.formatPrice(tickData.ask, this.selectedPair);
-            }
-            
-            if (elements.spread && tickData.bid && tickData.ask) {
-                const spread = Math.abs(tickData.ask - tickData.bid);
-                const pips = this.calculatePips(spread, this.selectedPair);
-                elements.spread.textContent = `${pips.toFixed(1)} pips`;
-            }
-            
-            if (elements.volume && tickData.volume) {
-                elements.volume.textContent = this.formatVolume(tickData.volume);
-            }
-            
-            // Update price change with animation
-            if (elements.priceChange) {
-                this.updatePriceChange(elements.priceChange, displayPrice);
-            }
-        });
-    }
-    
-    updatePriceChange(element, currentPrice) {
-        const changeIcon = element.querySelector('i');
-        const changeText = element.querySelector('span');
-        
-        if (changeIcon && changeText) {
-            // Calculate change based on previous price
-            const prevPrice = this.chartData.length > 1 ? 
-                this.chartData[this.chartData.length - 2].y : currentPrice;
-            const change = currentPrice - prevPrice;
-            const changePercent = prevPrice > 0 ? (change / prevPrice) * 100 : 0;
-            
-            const sign = change >= 0 ? '+' : '';
-            changeText.textContent = `${sign}${change.toFixed(4)} (${sign}${changePercent.toFixed(2)}%)`;
-            
-            // Animate color change
-            if (change >= 0) {
-                changeIcon.setAttribute('data-lucide', 'trending-up');
-                element.className = 'flex items-center justify-end text-primary-500 text-sm transition-colors duration-300';
-            } else {
-                changeIcon.setAttribute('data-lucide', 'trending-down');
-                element.className = 'flex items-center justify-end text-red-500 text-sm transition-colors duration-300';
-            }
-            
-            // Refresh icons efficiently
-            if (window.lucide) {
-                window.lucide.createIcons();
-            }
-        }
-    }
-    
-    updateChart(tickData) {
-        if (!this.chart || !tickData) return;
-        
-        try {
-            const now = Date.now();
-            const price = tickData.last || tickData.bid || tickData.ask || 0;
-            
-            // Throttle chart updates for performance
-            if (now - this.lastTickTime < 100) { // Max 10 updates per second
-                return;
-            }
-            this.lastTickTime = now;
-            
-            // Add new data point
-            this.chartData.push({
-                x: now,
-                y: price
-            });
-            
-            // Keep only recent points for performance
-            if (this.chartData.length > this.maxChartPoints) {
-                this.chartData = this.chartData.slice(-this.maxChartPoints);
-            }
-            
-            // Update chart with minimal animation
-            this.chart.data.datasets[0].data = this.chartData;
-            this.chart.update('none'); // No animation for fastest updates
-            
-        } catch (error) {
-            console.debug('Chart update error:', error);
-        }
-    }
-    
-    initializeChart() {
-        const ctx = document.getElementById('price-chart');
-        if (!ctx) return;
-        
-        try {
-            this.chart = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    datasets: [{
-                        label: 'Price',
-                        data: this.chartData,
-                        borderColor: '#10b981',
-                        backgroundColor: 'rgba(16, 185, 129, 0.1)',
-                        borderWidth: 2,
-                        fill: true,
-                        tension: 0.2,
-                        pointRadius: 0,
-                        pointHoverRadius: 3
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    animation: false,
-                    interaction: {
-                        intersect: false,
-                        mode: 'index'
-                    },
-                    plugins: {
-                        legend: {
-                            display: false
-                        },
-                        tooltip: {
-                            enabled: true,
-                            mode: 'index',
-                            intersect: false,
-                            animation: false,
-                            callbacks: {
-                                label: (context) => {
-                                    return `Price: ${this.formatPrice(context.parsed.y, this.selectedPair)}`;
-                                }
-                            }
-                        }
-                    },
-                    scales: {
-                        x: {
-                            type: 'time',
-                            display: true,
-                            grid: {
-                                color: 'rgba(255, 255, 255, 0.1)'
-                            },
-                            ticks: {
-                                color: '#9ca3af',
-                                maxTicksLimit: 5
-                            }
-                        },
-                        y: {
-                            display: true,
-                            grid: {
-                                color: 'rgba(255, 255, 255, 0.1)'
-                            },
-                            ticks: {
-                                color: '#9ca3af',
-                                callback: (value) => {
-                                    return this.formatPrice(value, this.selectedPair);
-                                }
-                            }
-                        }
-                    },
-                    parsing: false,
-                    normalized: true,
-                    spanGaps: true
-                }
-            });
-            
-            console.log('✅ Chart initialized');
-            
-        } catch (error) {
-            console.error('❌ Error initializing chart:', error);
-        }
-    }
-    
-    updateConnectionDisplay() {
-        const connection = this.currentData.connection;
-        
-        requestAnimationFrame(() => {
-            // Update main connection status
-            const statusElement = document.getElementById('connection-status');
-            const typeElement = document.getElementById('connection-type-badge');
-            
-            if (statusElement) {
-                const dot = statusElement.querySelector('.w-2.h-2');
-                const icon = statusElement.querySelector('i');
-                const text = statusElement.querySelector('span');
-                
-                if (connection.is_connected) {
-                    statusElement.className = 'flex items-center px-3 py-1.5 rounded-full glass border border-green-500/30 transition-all duration-300';
-                    if (dot) dot.className = 'w-2 h-2 bg-green-500 rounded-full mr-2';
-                    if (icon) icon.setAttribute('data-lucide', 'wifi');
-                    if (text) {
-                        text.textContent = `Connected to ${connection.server || 'MT5'}`;
-                        text.className = 'text-green-400 font-medium text-sm';
-                    }
-                } else {
-                    statusElement.className = 'flex items-center px-3 py-1.5 rounded-full glass border border-red-500/30 connection-pulse';
-                    if (dot) dot.className = 'w-2 h-2 bg-red-500 rounded-full mr-2 animate-pulse';
-                    if (icon) icon.setAttribute('data-lucide', 'wifi-off');
-                    if (text) {
-                        text.textContent = 'Connecting to MT5...';
-                        text.className = 'text-red-400 font-medium text-sm';
-                    }
-                }
-                
-                if (window.lucide) {
-                    window.lucide.createIcons();
-                }
-            }
-            
-            if (typeElement) {
-                if (connection.is_connected) {
-                    typeElement.textContent = connection.connection_type === 'direct' ? 'MT5 Live' : 'Connected';
-                    typeElement.className = 'px-3 py-1 rounded-full text-xs font-medium bg-green-500/20 text-green-400 transition-all duration-300';
-                } else {
-                    typeElement.textContent = 'Connecting...';
-                    typeElement.className = 'px-3 py-1 rounded-full text-xs font-medium bg-yellow-500/20 text-yellow-400 transition-all duration-300';
-                }
-            }
-            
-            // Update detailed connection info
-            this.updateElement('mt5-server', connection.server || 'Connecting...');
-            this.updateElement('mt5-account', connection.account ? connection.account.toString() : '--');
-            this.updateElement('mt5-connection-status', connection.is_connected ? 'Connected' : 'Initializing');
-            
-            // Update mode indicator in footer
-            this.updateElement('mode-indicator', connection.is_connected ? 'MT5 Live' : 'Connecting');
-            this.updateElement('status-indicator', connection.is_connected ? 'Live' : 'Connecting');
-        });
-    }
-    
-    updateAccountDisplay() {
-        const account = this.currentData.account;
-        
-        requestAnimationFrame(() => {
-            if (account.balance !== undefined) {
-                this.updateElement('account-balance', this.formatCurrency(account.balance));
-            }
-            
-            if (account.equity !== undefined) {
-                this.updateElement('account-equity', this.formatCurrency(account.equity));
-            }
-            
-            if (account.free_margin !== undefined) {
-                this.updateElement('account-free-margin', this.formatCurrency(account.free_margin));
-            }
-            
-            if (account.margin_level !== undefined) {
-                const marginLevel = Math.min(Math.max(account.margin_level || 0, 0), 100);
-                this.updateElement('margin-level-percent', `${marginLevel.toFixed(1)}%`);
-                
-                const marginBar = document.getElementById('margin-level-bar');
-                if (marginBar) {
-                    marginBar.style.width = `${marginLevel}%`;
-                }
-            }
-            
-            // Calculate and display balance change
-            if (account.balance && account.equity) {
-                const change = account.equity - account.balance;
-                const changePercent = account.balance > 0 ? (change / account.balance) * 100 : 0;
-                
-                const changeElement = document.getElementById('balance-change');
-                if (changeElement) {
-                    const sign = change >= 0 ? '+' : '';
-                    changeElement.textContent = `${sign}${changePercent.toFixed(2)}%`;
-                    changeElement.className = change >= 0 ? 'text-sm text-green-400 transition-colors duration-300' : 'text-sm text-red-400 transition-colors duration-300';
-                }
-            }
-        });
-    }
-    
-    updateTradingStats() {
-        const positions = this.currentData.positions || [];
-        const orders = this.currentData.orders || [];
-        
-        requestAnimationFrame(() => {
-            this.updateElement('open-positions', positions.length.toString());
-            this.updateElement('pending-orders', orders.length.toString());
-            
-            // Calculate daily P&L
-            const totalProfit = positions.reduce((sum, pos) => sum + (pos.profit || 0), 0);
-            const dailyPnlElement = document.getElementById('daily-pnl');
-            if (dailyPnlElement) {
-                const sign = totalProfit >= 0 ? '+' : '';
-                dailyPnlElement.textContent = `${sign}${this.formatCurrency(totalProfit)}`;
-                dailyPnlElement.className = totalProfit >= 0 ? 
-                    'text-2xl font-bold text-primary-500 transition-colors duration-300' : 
-                    'text-2xl font-bold text-red-500 transition-colors duration-300';
-            }
-        });
-    }
-    
-    updatePairsList() {
-        const pairs = this.currentData.pairs || [];
-        const pairsListElement = document.getElementById('pairs-list');
-        const pairsCountElement = document.getElementById('pairs-count');
-        
-        console.log(`🔄 Updating pairs list with ${pairs.length} pairs`);
-        
-        if (pairsCountElement) {
-            pairsCountElement.textContent = `${pairs.length} pairs`;
-        }
-        
-        if (!pairsListElement) {
-            console.error('❌ Pairs list element not found');
-            return;
-        }
-        
-        if (pairs.length === 0) {
-            pairsListElement.innerHTML = `
-                <div class="text-center text-gray-400 py-6">
-                    <i data-lucide="loader" class="w-6 h-6 mx-auto mb-2 animate-spin"></i>
-                    <p class="font-medium text-sm">Loading pairs...</p>
-                    <p class="text-xs">Connecting to MT5...</p>
-                </div>
-            `;
-            
-            if (window.lucide) {
-                window.lucide.createIcons();
-            }
-            return;
-        }
-        
-        // Sort pairs by category and name for better organization
-        const sortedPairs = [...pairs].sort((a, b) => {
-            if (a.category !== b.category) {
-                const categoryOrder = { 'major': 0, 'minor': 1, 'crypto': 2, 'commodities': 3, 'indices': 4, 'exotic': 5, 'other': 6 };
-                return (categoryOrder[a.category] || 6) - (categoryOrder[b.category] || 6);
-            }
-            return a.symbol.localeCompare(b.symbol);
-        });
-        
-        const fragment = document.createDocumentFragment();
-        
-        sortedPairs.forEach(pair => {
-            const div = document.createElement('div');
-            div.className = `pair-item p-2 rounded-lg cursor-pointer transition-all duration-200 ${pair.symbol === this.selectedPair ? 'selected' : ''}`;
-            div.dataset.symbol = pair.symbol;
-            
-            div.innerHTML = `
-                <div class="flex items-center justify-between">
-                    <div class="flex items-center space-x-2">
-                        <span class="font-medium text-white text-sm">${pair.symbol}</span>
-                        <span class="category-${pair.category} px-1.5 py-0.5 rounded text-xs font-medium">${pair.category}</span>
-                    </div>
-                    <div class="text-right">
-                        <div class="text-xs text-gray-400">${(pair.spread || 0).toFixed(1)} pips</div>
-                    </div>
-                </div>
-                <div class="text-xs text-gray-400 mt-1 truncate">${pair.name}</div>
-            `;
-            
-            fragment.appendChild(div);
-        });
-        
-        pairsListElement.innerHTML = '';
-        pairsListElement.appendChild(fragment);
-        
-        // Re-attach event listeners
-        this.attachPairEventListeners();
-        
-        if (window.lucide) {
-            window.lucide.createIcons();
-        }
-        
-        console.log(`✅ Pairs list updated with ${sortedPairs.length} pairs`);
-    }
-    
-    updateSupertrendDisplay() {
-        const supertrend = this.currentData.supertrend;
-        if (!supertrend) return;
-        
-        requestAnimationFrame(() => {
-            // Update trend indicator
-            const trendIndicator = document.getElementById('trend-indicator');
-            if (trendIndicator) {
-                const isBullish = supertrend.trend === 1;
-                const icon = trendIndicator.querySelector('i');
-                const text = trendIndicator.querySelector('span');
-                
-                if (icon) {
-                    icon.setAttribute('data-lucide', isBullish ? 'trending-up' : 'trending-down');
-                }
-                
-                if (text) {
-                    text.textContent = isBullish ? 'BULLISH' : 'BEARISH';
-                }
-                
-                trendIndicator.className = isBullish ? 
-                    'flex items-center px-3 py-1.5 rounded-full gradient-primary text-sm transition-all duration-300' :
-                    'flex items-center px-3 py-1.5 rounded-full gradient-danger text-sm transition-all duration-300';
-                
-                if (window.lucide) {
-                    window.lucide.createIcons();
-                }
-            }
-            
-            // Update trend strength
-            if (supertrend.trend_strength !== undefined) {
-                const strength = Math.min(Math.max(supertrend.trend_strength, 0), 100);
-                this.updateElement('trend-strength-value', `${strength.toFixed(1)}%`);
-                
-                const strengthBar = document.getElementById('trend-strength-bar');
-                if (strengthBar) {
-                    strengthBar.style.width = `${strength}%`;
-                }
-            }
-            
-            // Update ATR
-            if (supertrend.atr !== undefined) {
-                this.updateElement('atr-value', supertrend.atr.toFixed(5));
-            }
-            
-            // Update RSI
-            if (supertrend.rsi !== undefined) {
-                const rsi = Math.min(Math.max(supertrend.rsi, 0), 100);
-                this.updateElement('rsi-value', rsi.toFixed(1));
-                
-                const rsiBar = document.getElementById('rsi-bar');
-                if (rsiBar) {
-                    rsiBar.style.width = `${rsi}%`;
-                }
-            }
-            
-            // Update signals
-            this.updateSignalIndicator('buy-signal-indicator', supertrend.buy_signal);
-            this.updateSignalIndicator('sell-signal-indicator', supertrend.sell_signal);
-            this.updateSignalIndicator('strong-signal-indicator', supertrend.strong_signal);
-        });
-    }
-    
-    updateSignalIndicator(elementId, isActive) {
-        const element = document.getElementById(elementId);
-        if (!element) return;
-        
-        if (isActive) {
-            element.className = 'w-4 h-4 rounded-full bg-green-500 signal-active transition-all duration-300';
-        } else {
-            element.className = 'w-4 h-4 rounded-full border-2 border-gray-600 transition-all duration-300';
-        }
-    }
-    
+
     setupEventListeners() {
-        // Pair selection
-        this.attachPairEventListeners();
-        
+        // Pair search functionality
+        const searchInput = document.getElementById('pair-search');
+        if (searchInput) {
+            searchInput.addEventListener('input', (e) => {
+                this.searchTerm = e.target.value.toLowerCase();
+                this.filterAndDisplayPairs();
+            });
+        }
+
+        // Category filters
+        document.querySelectorAll('.category-filter').forEach(button => {
+            button.addEventListener('click', (e) => {
+                // Update active state
+                document.querySelectorAll('.category-filter').forEach(btn => {
+                    btn.classList.remove('active', 'bg-primary-500', 'text-white');
+                    btn.classList.add('glass', 'text-gray-300');
+                });
+                
+                e.target.classList.remove('glass', 'text-gray-300');
+                e.target.classList.add('active', 'bg-primary-500', 'text-white');
+                
+                this.selectedCategory = e.target.dataset.category;
+                this.filterAndDisplayPairs();
+            });
+        });
+
         // Control buttons
         const playPauseBtn = document.getElementById('play-pause-btn');
         if (playPauseBtn) {
             playPauseBtn.addEventListener('click', () => this.togglePlayPause());
         }
-        
+
         const resetBtn = document.getElementById('reset-btn');
         if (resetBtn) {
             resetBtn.addEventListener('click', () => this.resetDashboard());
         }
-        
+
         const settingsBtn = document.getElementById('settings-btn');
         if (settingsBtn) {
             settingsBtn.addEventListener('click', () => this.toggleSettings());
         }
-        
+
         const connectionTestBtn = document.getElementById('connection-test-btn');
         if (connectionTestBtn) {
             connectionTestBtn.addEventListener('click', () => this.showConnectionTest());
         }
-        
-        // Search functionality
-        const searchInput = document.getElementById('pair-search');
-        if (searchInput) {
-            let searchTimeout;
-            searchInput.addEventListener('input', (e) => {
-                clearTimeout(searchTimeout);
-                searchTimeout = setTimeout(() => {
-                    this.filterPairs(e.target.value);
-                }, 300);
+
+        // Settings panel
+        const closeSettingsBtn = document.getElementById('close-settings');
+        if (closeSettingsBtn) {
+            closeSettingsBtn.addEventListener('click', () => this.hideSettings());
+        }
+
+        const applySettingsBtn = document.getElementById('apply-settings');
+        if (applySettingsBtn) {
+            applySettingsBtn.addEventListener('click', () => this.applySettings());
+        }
+
+        // Range sliders
+        const atrPeriodSlider = document.getElementById('atr-period');
+        if (atrPeriodSlider) {
+            atrPeriodSlider.addEventListener('input', (e) => {
+                document.getElementById('atr-period-value').textContent = e.target.value;
             });
         }
-        
-        // Category filters
-        const categoryFilters = document.querySelectorAll('.category-filter');
-        categoryFilters.forEach(filter => {
-            filter.addEventListener('click', (e) => this.filterByCategory(e.target.dataset.category));
-        });
-        
-        // Settings panel
-        const closeSettings = document.getElementById('close-settings');
-        if (closeSettings) {
-            closeSettings.addEventListener('click', () => this.toggleSettings());
+
+        const multiplierSlider = document.getElementById('multiplier');
+        if (multiplierSlider) {
+            multiplierSlider.addEventListener('input', (e) => {
+                document.getElementById('multiplier-value').textContent = e.target.value;
+            });
         }
-        
+
+        const rsiPeriodSlider = document.getElementById('rsi-period');
+        if (rsiPeriodSlider) {
+            rsiPeriodSlider.addEventListener('input', (e) => {
+                document.getElementById('rsi-period-value').textContent = e.target.value;
+            });
+        }
+
         // Connection test modal
         const closeTestModal = document.getElementById('close-test-modal');
         if (closeTestModal) {
             closeTestModal.addEventListener('click', () => this.hideConnectionTest());
         }
-        
-        const runTest = document.getElementById('run-test');
-        if (runTest) {
-            runTest.addEventListener('click', () => this.runConnectionTest());
+
+        const runTestBtn = document.getElementById('run-test');
+        if (runTestBtn) {
+            runTestBtn.addEventListener('click', () => this.runConnectionTest());
+        }
+
+        // Refresh connection
+        const refreshConnectionBtn = document.getElementById('refresh-connection');
+        if (refreshConnectionBtn) {
+            refreshConnectionBtn.addEventListener('click', () => this.refreshConnection());
+        }
+
+        // Clear alerts
+        const clearAlertsBtn = document.getElementById('clear-alerts');
+        if (clearAlertsBtn) {
+            clearAlertsBtn.addEventListener('click', () => this.clearAlerts());
         }
     }
-    
-    attachPairEventListeners() {
-        const pairItems = document.querySelectorAll('.pair-item');
-        pairItems.forEach(item => {
-            item.addEventListener('click', () => {
-                const symbol = item.dataset.symbol;
-                if (symbol) {
-                    this.selectPair(symbol);
-                }
-            });
-        });
+
+    async startDataFetching() {
+        console.log('🔄 Starting data fetching...');
+        
+        // Start all data fetching processes
+        await Promise.all([
+            this.fetchConnectionStatus(),
+            this.fetchAllPairsData(),
+            this.fetchMarketData(),
+            this.fetchAccountData()
+        ]);
+        
+        // Start periodic updates
+        this.startPeriodicUpdates();
     }
-    
-    selectPair(symbol) {
-        if (symbol === this.selectedPair) return;
-        
-        console.log(`📊 Selecting pair: ${symbol}`);
-        
-        // Update selected pair
-        this.selectedPair = symbol;
-        
-        // Clear price format cache for new symbol
-        this.priceFormatCache.clear();
-        
-        // Update UI
-        this.updateElement('current-symbol', symbol);
-        this.updateElement('footer-pair', symbol);
-        
-        // Update pair selection in list
-        const pairItems = document.querySelectorAll('.pair-item');
-        pairItems.forEach(item => {
-            if (item.dataset.symbol === symbol) {
-                item.classList.add('selected');
-            } else {
-                item.classList.remove('selected');
-            }
-        });
-        
-        // Clear chart data for new pair
-        this.chartData = [];
-        if (this.chart) {
-            this.chart.data.datasets[0].data = [];
-            this.chart.update('none');
+
+    startPeriodicUpdates() {
+        // Optimized update intervals for different data types
+        setInterval(() => this.fetchTickData(), this.updateIntervals.tick);
+        setInterval(() => this.fetchConnectionStatus(), this.updateIntervals.connection);
+        setInterval(() => this.fetchAllPairsData(), this.updateIntervals.pairs);
+        setInterval(() => this.fetchMarketData(), this.updateIntervals.market);
+    }
+
+    async fetchAllPairsData() {
+        const now = Date.now();
+        if (now - this.lastUpdates.pairs < this.updateIntervals.pairs && this.cache.pairs) {
+            return this.cache.pairs;
         }
-        
-        // Fetch new data immediately for the selected pair
-        console.log(`🔄 Fetching data for new pair: ${symbol}`);
-        setTimeout(() => {
-            this.fetchTickData();
-            this.fetchSupertrendData();
-        }, 100); // Small delay to ensure UI updates first
-    }
-    
-    async loadInitialData() {
-        console.log('📊 Loading initial dashboard data...');
-        
+
         try {
-            // Load critical data first
-            await Promise.race([
-                this.fetchConnectionStatus(),
-                this.fetchTickData()
-            ]);
+            console.log('📊 Fetching ALL pairs data from MT5...');
             
-            // Load pairs data with priority
-            await this.fetchPairsDataWithRetry();
+            // Try multiple endpoints for maximum compatibility
+            const endpoints = [
+                '/api/pairs',
+                '/api/pairs/reload',
+                '/api/debug/pairs'
+            ];
             
-            // Load other data in background
-            setTimeout(() => {
-                this.fetchAccountData();
-                this.fetchSupertrendData();
-            }, 100);
+            let pairs = null;
+            let lastError = null;
             
-            console.log('✅ Initial data loaded successfully');
+            for (const endpoint of endpoints) {
+                try {
+                    console.log(`🔄 Trying endpoint: ${endpoint}`);
+                    const response = await fetch(endpoint);
+                    
+                    if (response.ok) {
+                        const data = await response.json();
+                        
+                        // Handle different response formats
+                        if (Array.isArray(data)) {
+                            pairs = data;
+                        } else if (data.pairs && Array.isArray(data.pairs)) {
+                            pairs = data.pairs;
+                        } else if (data.data && Array.isArray(data.data)) {
+                            pairs = data.data;
+                        }
+                        
+                        if (pairs && pairs.length > 0) {
+                            console.log(`✅ Successfully fetched ${pairs.length} pairs from ${endpoint}`);
+                            break;
+                        }
+                    }
+                } catch (error) {
+                    console.warn(`⚠️ Endpoint ${endpoint} failed:`, error);
+                    lastError = error;
+                    continue;
+                }
+            }
+            
+            // If all endpoints failed, show error but don't crash
+            if (!pairs || pairs.length === 0) {
+                console.error('❌ All endpoints failed to fetch pairs:', lastError);
+                this.showPairsError('Unable to load trading pairs from MT5. Please check your connection.');
+                return [];
+            }
+            
+            // Process and validate pairs
+            const processedPairs = this.processPairsData(pairs);
+            
+            // Cache the results
+            this.cache.pairs = processedPairs;
+            this.lastUpdates.pairs = now;
+            
+            // Update the pairs list
+            this.allPairs = processedPairs;
+            this.filterAndDisplayPairs();
+            
+            // Update pairs count
+            this.updatePairsCount(processedPairs.length);
+            
+            console.log(`✅ Processed ${processedPairs.length} trading pairs`);
+            return processedPairs;
             
         } catch (error) {
-            console.error('❌ Error loading initial data:', error);
+            console.error('❌ Error fetching pairs data:', error);
+            this.showPairsError('Error loading trading pairs. Retrying...');
+            return [];
         }
     }
-    
-    updateLastUpdateDisplay() {
-        if (this.lastUpdateTime) {
-            const timeStr = this.lastUpdateTime.toLocaleTimeString();
-            this.updateElement('last-update', timeStr);
-            this.updateElement('mt5-last-update', timeStr);
-        }
-    }
-    
-    updateConnectionStatus(isConnected) {
-        const statusDot = document.getElementById('status-dot');
-        if (statusDot) {
-            if (isConnected) {
-                statusDot.className = 'w-2 h-2 bg-primary-500 rounded-full transition-all duration-300';
-            } else {
-                statusDot.className = 'w-2 h-2 bg-red-500 rounded-full animate-pulse';
+
+    processPairsData(rawPairs) {
+        console.log('🔄 Processing pairs data...');
+        
+        const processedPairs = [];
+        const seenSymbols = new Set();
+        
+        for (const pair of rawPairs) {
+            try {
+                // Skip duplicates
+                if (seenSymbols.has(pair.symbol)) {
+                    continue;
+                }
+                seenSymbols.add(pair.symbol);
+                
+                // Validate required fields
+                if (!pair.symbol || typeof pair.symbol !== 'string') {
+                    console.warn('⚠️ Invalid pair symbol:', pair);
+                    continue;
+                }
+                
+                // Create standardized pair object
+                const processedPair = {
+                    symbol: pair.symbol.toUpperCase(),
+                    name: pair.name || pair.description || pair.symbol,
+                    category: this.categorizePair(pair.symbol, pair.category),
+                    digits: pair.digits || 5,
+                    point_size: pair.point_size || pair.point || 0.00001,
+                    min_lot: pair.min_lot || pair.volume_min || 0.01,
+                    max_lot: pair.max_lot || pair.volume_max || 100.0,
+                    lot_step: pair.lot_step || pair.volume_step || 0.01,
+                    spread: pair.spread || 2.0,
+                    swap_long: pair.swap_long || -1.0,
+                    swap_short: pair.swap_short || 0.5
+                };
+                
+                processedPairs.push(processedPair);
+                
+            } catch (error) {
+                console.warn('⚠️ Error processing pair:', pair, error);
+                continue;
             }
         }
+        
+        // Sort pairs by category and symbol
+        processedPairs.sort((a, b) => {
+            const categoryOrder = ['major', 'minor', 'crypto', 'commodities', 'indices', 'exotic', 'other'];
+            const aCategoryIndex = categoryOrder.indexOf(a.category);
+            const bCategoryIndex = categoryOrder.indexOf(b.category);
+            
+            if (aCategoryIndex !== bCategoryIndex) {
+                return aCategoryIndex - bCategoryIndex;
+            }
+            
+            return a.symbol.localeCompare(b.symbol);
+        });
+        
+        console.log(`✅ Processed ${processedPairs.length} pairs successfully`);
+        
+        // Log category distribution
+        const categoryCount = {};
+        processedPairs.forEach(pair => {
+            categoryCount[pair.category] = (categoryCount[pair.category] || 0) + 1;
+        });
+        console.log('📊 Category distribution:', categoryCount);
+        
+        return processedPairs;
     }
-    
-    // Utility methods
-    updateElement(id, value) {
-        const element = document.getElementById(id);
-        if (element && value !== undefined && value !== null) {
-            element.textContent = value;
+
+    categorizePair(symbol, existingCategory) {
+        // Use existing category if provided and valid
+        const validCategories = ['major', 'minor', 'crypto', 'commodities', 'indices', 'exotic', 'other'];
+        if (existingCategory && validCategories.includes(existingCategory)) {
+            return existingCategory;
+        }
+        
+        const symbolUpper = symbol.toUpperCase();
+        
+        // Major forex pairs
+        const majorPairs = ['EURUSD', 'GBPUSD', 'USDJPY', 'USDCHF', 'AUDUSD', 'USDCAD', 'NZDUSD'];
+        if (majorPairs.includes(symbolUpper)) {
+            return 'major';
+        }
+        
+        // Minor forex pairs (cross currencies)
+        const minorPairs = ['EURGBP', 'EURJPY', 'GBPJPY', 'EURCHF', 'EURAUD', 'EURCAD', 'GBPCHF', 'GBPAUD', 'AUDCAD', 'AUDCHF', 'AUDJPY', 'AUDNZD', 'CADCHF', 'CADJPY', 'CHFJPY', 'GBPCAD', 'GBPNZD', 'NZDCAD', 'NZDCHF', 'NZDJPY'];
+        if (minorPairs.includes(symbolUpper)) {
+            return 'minor';
+        }
+        
+        // Cryptocurrencies
+        if (symbolUpper.includes('BTC') || symbolUpper.includes('ETH') || symbolUpper.includes('LTC') || 
+            symbolUpper.includes('XRP') || symbolUpper.includes('ADA') || symbolUpper.includes('DOT') ||
+            symbolUpper.includes('LINK') || symbolUpper.includes('BCH') || symbolUpper.includes('EOS') ||
+            symbolUpper.includes('TRX') || symbolUpper.includes('CRYPTO')) {
+            return 'crypto';
+        }
+        
+        // Commodities
+        if (symbolUpper.includes('XAU') || symbolUpper.includes('XAG') || symbolUpper.includes('GOLD') || 
+            symbolUpper.includes('SILVER') || symbolUpper.includes('OIL') || symbolUpper.includes('WTI') || 
+            symbolUpper.includes('BRENT') || symbolUpper.includes('USOIL') || symbolUpper.includes('UKOIL') ||
+            symbolUpper.includes('COPPER') || symbolUpper.includes('PLATINUM')) {
+            return 'commodities';
+        }
+        
+        // Indices
+        if (symbolUpper.includes('US30') || symbolUpper.includes('SPX') || symbolUpper.includes('NAS') || 
+            symbolUpper.includes('UK100') || symbolUpper.includes('GER') || symbolUpper.includes('FRA') || 
+            symbolUpper.includes('JPN') || symbolUpper.includes('AUS') || symbolUpper.includes('HK') ||
+            symbolUpper.includes('CHINA') || symbolUpper.includes('INDEX') || symbolUpper.includes('DOW') ||
+            symbolUpper.includes('NASDAQ') || symbolUpper.includes('SP500')) {
+            return 'indices';
+        }
+        
+        // Exotic forex pairs (6-character currency pairs not in major/minor)
+        if (symbolUpper.length === 6 && /^[A-Z]{6}$/.test(symbolUpper)) {
+            return 'exotic';
+        }
+        
+        return 'other';
+    }
+
+    filterAndDisplayPairs() {
+        console.log(`🔍 Filtering pairs: category="${this.selectedCategory}", search="${this.searchTerm}"`);
+        
+        let filtered = [...this.allPairs];
+        
+        // Apply category filter
+        if (this.selectedCategory !== 'all') {
+            filtered = filtered.filter(pair => pair.category === this.selectedCategory);
+        }
+        
+        // Apply search filter
+        if (this.searchTerm) {
+            filtered = filtered.filter(pair => 
+                pair.symbol.toLowerCase().includes(this.searchTerm) ||
+                pair.name.toLowerCase().includes(this.searchTerm)
+            );
+        }
+        
+        this.filteredPairs = filtered;
+        this.displayPairs(filtered);
+        
+        console.log(`📊 Displaying ${filtered.length} of ${this.allPairs.length} pairs`);
+    }
+
+    displayPairs(pairs) {
+        const pairsList = document.getElementById('pairs-list');
+        if (!pairsList) return;
+        
+        if (pairs.length === 0) {
+            pairsList.innerHTML = `
+                <div class="text-center text-gray-400 py-6">
+                    <i data-lucide="search-x" class="w-8 h-8 mx-auto mb-2 opacity-50"></i>
+                    <p class="font-medium text-sm">No pairs found</p>
+                    <p class="text-xs">Try adjusting your search or filter</p>
+                </div>
+            `;
+            lucide.createIcons();
+            return;
+        }
+        
+        const pairsHTML = pairs.map(pair => `
+            <div class="pair-item p-3 rounded-lg cursor-pointer transition-all duration-200 hover:bg-white/5" 
+                 data-symbol="${pair.symbol}" 
+                 onclick="dashboard.selectPair('${pair.symbol}')">
+                <div class="flex items-center justify-between">
+                    <div class="flex-1">
+                        <div class="flex items-center space-x-2">
+                            <span class="font-bold text-white text-sm">${pair.symbol}</span>
+                            <span class="category-${pair.category} px-2 py-0.5 rounded text-xs font-medium">
+                                ${pair.category.toUpperCase()}
+                            </span>
+                        </div>
+                        <div class="text-xs text-gray-400 mt-1 truncate">${pair.name}</div>
+                    </div>
+                    <div class="text-right">
+                        <div class="text-yellow-400 font-medium text-sm">${pair.spread.toFixed(1)} pips</div>
+                        <div class="text-xs text-gray-500">Spread</div>
+                    </div>
+                </div>
+            </div>
+        `).join('');
+        
+        pairsList.innerHTML = pairsHTML;
+        
+        // Highlight selected pair
+        this.highlightSelectedPair();
+        
+        // Recreate icons
+        lucide.createIcons();
+    }
+
+    showPairsError(message) {
+        const pairsList = document.getElementById('pairs-list');
+        if (!pairsList) return;
+        
+        pairsList.innerHTML = `
+            <div class="text-center text-red-400 py-6">
+                <i data-lucide="alert-circle" class="w-8 h-8 mx-auto mb-2"></i>
+                <p class="font-medium text-sm">${message}</p>
+                <button onclick="dashboard.fetchAllPairsData()" class="mt-2 px-3 py-1 bg-red-500/20 text-red-400 rounded text-xs hover:bg-red-500/30 transition-colors">
+                    Retry
+                </button>
+            </div>
+        `;
+        lucide.createIcons();
+    }
+
+    updatePairsCount(count) {
+        const pairsCountElement = document.getElementById('pairs-count');
+        if (pairsCountElement) {
+            pairsCountElement.textContent = `${count} pairs`;
         }
     }
-    
-    formatCurrency(amount) {
-        if (typeof amount !== 'number' || isNaN(amount)) return '$0.00';
-        return `$${amount.toFixed(2)}`;
+
+    async selectPair(symbol) {
+        console.log(`📊 Selecting pair: ${symbol}`);
+        
+        if (symbol === this.currentSymbol) {
+            console.log('📊 Pair already selected');
+            return;
+        }
+        
+        this.currentSymbol = symbol;
+        
+        // Update UI immediately
+        this.updateCurrentSymbolDisplay(symbol);
+        this.highlightSelectedPair();
+        this.showSelectedPairInfo(symbol);
+        
+        // Clear chart data for new pair
+        this.clearChartData();
+        
+        // Fetch new data immediately
+        await Promise.all([
+            this.fetchTickData(symbol),
+            this.fetchMarketData(symbol),
+            this.calculateSuperTrend(symbol)
+        ]);
+        
+        console.log(`✅ Pair selection complete: ${symbol}`);
     }
-    
+
+    highlightSelectedPair() {
+        // Remove previous selection
+        document.querySelectorAll('.pair-item').forEach(item => {
+            item.classList.remove('selected', 'bg-primary-500/15', 'border-primary-500/30');
+        });
+        
+        // Highlight current selection
+        const selectedItem = document.querySelector(`[data-symbol="${this.currentSymbol}"]`);
+        if (selectedItem) {
+            selectedItem.classList.add('selected', 'bg-primary-500/15', 'border-primary-500/30');
+        }
+    }
+
+    showSelectedPairInfo(symbol) {
+        const pair = this.allPairs.find(p => p.symbol === symbol);
+        if (!pair) return;
+        
+        const infoPanel = document.getElementById('selected-pair-info');
+        if (!infoPanel) return;
+        
+        // Update pair details
+        document.getElementById('pair-digits').textContent = pair.digits;
+        document.getElementById('pair-min-lot').textContent = pair.min_lot;
+        document.getElementById('pair-spread').textContent = `${pair.spread.toFixed(1)} pips`;
+        document.getElementById('pair-category').textContent = pair.category.charAt(0).toUpperCase() + pair.category.slice(1);
+        
+        // Show the panel
+        infoPanel.classList.remove('hidden');
+    }
+
+    updateCurrentSymbolDisplay(symbol) {
+        const elements = [
+            'current-symbol',
+            'footer-pair'
+        ];
+        
+        elements.forEach(id => {
+            const element = document.getElementById(id);
+            if (element) {
+                element.textContent = symbol;
+            }
+        });
+    }
+
+    clearChartData() {
+        if (this.chart) {
+            this.chart.data.labels = [];
+            this.chart.data.datasets.forEach(dataset => {
+                dataset.data = [];
+            });
+            this.chart.update('none');
+        }
+    }
+
+    async fetchTickData(symbol = null) {
+        if (!this.isRunning) return;
+        
+        const targetSymbol = symbol || this.currentSymbol;
+        const now = Date.now();
+        
+        // Check cache for this specific symbol
+        const cacheKey = `tick_${targetSymbol}`;
+        if (now - (this.lastUpdates[cacheKey] || 0) < this.updateIntervals.tick) {
+            return this.cache.tickData.get(targetSymbol);
+        }
+        
+        try {
+            const response = await fetch(`/api/tick?symbol=${targetSymbol}`);
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+            
+            const tickData = await response.json();
+            
+            if (tickData && !tickData.error) {
+                // Cache the data
+                this.cache.tickData.set(targetSymbol, tickData);
+                this.lastUpdates[cacheKey] = now;
+                
+                // Update UI only if this is the current symbol
+                if (targetSymbol === this.currentSymbol) {
+                    this.updateTickDisplay(tickData);
+                }
+                
+                return tickData;
+            }
+        } catch (error) {
+            console.debug(`⚠️ Error fetching tick data for ${targetSymbol}:`, error);
+        }
+        
+        return null;
+    }
+
+    updateTickDisplay(tickData) {
+        if (!tickData) return;
+        
+        // Update price displays
+        const currentPrice = tickData.last || tickData.bid || 0;
+        const bid = tickData.bid || 0;
+        const ask = tickData.ask || 0;
+        const spread = ask - bid;
+        
+        // Format prices based on symbol
+        const digits = this.getSymbolDigits(this.currentSymbol);
+        const priceFormat = digits === 3 ? 2 : digits;
+        
+        this.updateElement('current-price', currentPrice.toFixed(priceFormat));
+        this.updateElement('bid-price', bid.toFixed(priceFormat));
+        this.updateElement('ask-price', ask.toFixed(priceFormat));
+        this.updateElement('spread', `${(spread * Math.pow(10, digits - 1)).toFixed(1)} pips`);
+        this.updateElement('volume', this.formatVolume(tickData.volume || 0));
+        
+        // Update last update time
+        this.updateElement('last-update', new Date().toLocaleTimeString());
+    }
+
+    getSymbolDigits(symbol) {
+        const pair = this.allPairs.find(p => p.symbol === symbol);
+        return pair ? pair.digits : 5;
+    }
+
     formatVolume(volume) {
-        if (typeof volume !== 'number' || isNaN(volume)) return '0';
         if (volume >= 1000000) {
             return `${(volume / 1000000).toFixed(1)}M`;
         } else if (volume >= 1000) {
@@ -1169,99 +637,514 @@ class SuperTrendDashboard {
         }
         return volume.toString();
     }
-    
-    calculatePips(spread, symbol) {
-        if (!symbol) return spread * 10000;
+
+    async fetchMarketData(symbol = null) {
+        if (!this.isRunning) return;
         
-        const symbolUpper = symbol.toUpperCase();
-        if (symbolUpper.includes('JPY')) {
-            return spread * 100;
-        } else if (symbolUpper.includes('XAU') || symbolUpper.includes('GOLD')) {
-            return spread * 10;
-        } else if (symbolUpper.includes('BTC') || symbolUpper.includes('ETH')) {
-            return spread;
+        const targetSymbol = symbol || this.currentSymbol;
+        const now = Date.now();
+        
+        // Check cache
+        const cacheKey = `market_${targetSymbol}`;
+        if (now - (this.lastUpdates[cacheKey] || 0) < this.updateIntervals.market) {
+            return this.cache.marketData.get(targetSymbol);
         }
-        return spread * 10000;
+        
+        try {
+            const response = await fetch(`/api/market-data?symbol=${targetSymbol}&timeframe=M15&count=100`);
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+            
+            const marketData = await response.json();
+            
+            if (marketData && Array.isArray(marketData) && marketData.length > 0) {
+                // Cache the data
+                this.cache.marketData.set(targetSymbol, marketData);
+                this.lastUpdates[cacheKey] = now;
+                
+                // Update chart only if this is the current symbol
+                if (targetSymbol === this.currentSymbol) {
+                    this.updateChart(marketData);
+                }
+                
+                return marketData;
+            }
+        } catch (error) {
+            console.debug(`⚠️ Error fetching market data for ${targetSymbol}:`, error);
+        }
+        
+        return null;
     }
-    
-    showError(message) {
-        console.error('❌ Dashboard Error:', message);
+
+    async calculateSuperTrend(symbol = null) {
+        if (!this.isRunning) return;
+        
+        const targetSymbol = symbol || this.currentSymbol;
+        
+        try {
+            const response = await fetch('/api/calculate', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    symbol: targetSymbol,
+                    timeframe: 'M15'
+                })
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+            
+            const result = await response.json();
+            
+            if (result.status === 'success' && result.result) {
+                // Update SuperTrend display only if this is the current symbol
+                if (targetSymbol === this.currentSymbol) {
+                    this.updateSuperTrendDisplay(result.result);
+                }
+                return result.result;
+            } else {
+                console.debug(`⚠️ SuperTrend calculation failed for ${targetSymbol}:`, result.message);
+            }
+        } catch (error) {
+            console.debug(`⚠️ Error calculating SuperTrend for ${targetSymbol}:`, error);
+        }
+        
+        return null;
     }
-    
+
+    updateSuperTrendDisplay(result) {
+        if (!result) return;
+        
+        // Update trend indicator
+        const trendIndicator = document.getElementById('trend-indicator');
+        if (trendIndicator) {
+            const isBullish = result.trend === 1;
+            trendIndicator.className = `flex items-center px-3 py-1.5 rounded-full text-sm ${isBullish ? 'gradient-primary' : 'gradient-danger'}`;
+            trendIndicator.innerHTML = `
+                <i data-lucide="${isBullish ? 'trending-up' : 'trending-down'}" class="w-4 h-4 mr-1"></i>
+                <span class="font-bold">${isBullish ? 'BULLISH' : 'BEARISH'}</span>
+            `;
+        }
+        
+        // Update metrics
+        this.updateElement('trend-strength-value', `${result.trend_strength.toFixed(1)}%`);
+        this.updateElement('atr-value', result.atr.toFixed(5));
+        this.updateElement('rsi-value', result.rsi.toFixed(1));
+        
+        // Update progress bars
+        this.updateProgressBar('trend-strength-bar', result.trend_strength);
+        this.updateProgressBar('rsi-bar', result.rsi);
+        
+        // Update signal indicators
+        this.updateSignalIndicator('buy-signal-indicator', result.buy_signal);
+        this.updateSignalIndicator('sell-signal-indicator', result.sell_signal);
+        this.updateSignalIndicator('strong-signal-indicator', result.strong_signal);
+        
+        // Recreate icons
+        lucide.createIcons();
+    }
+
+    updateProgressBar(id, value) {
+        const bar = document.getElementById(id);
+        if (bar) {
+            bar.style.width = `${Math.min(Math.max(value, 0), 100)}%`;
+        }
+    }
+
+    updateSignalIndicator(id, isActive) {
+        const indicator = document.getElementById(id);
+        if (indicator) {
+            if (isActive) {
+                indicator.className = 'w-4 h-4 rounded-full bg-primary-500 signal-active';
+            } else {
+                indicator.className = 'w-4 h-4 rounded-full border-2 border-gray-600';
+            }
+        }
+    }
+
+    async fetchConnectionStatus() {
+        const now = Date.now();
+        if (now - this.lastUpdates.connection < this.updateIntervals.connection && this.cache.connection) {
+            return this.cache.connection;
+        }
+        
+        try {
+            const response = await fetch('/api/connection');
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+            
+            const connectionData = await response.json();
+            
+            // Cache the data
+            this.cache.connection = connectionData;
+            this.lastUpdates.connection = now;
+            
+            this.updateConnectionDisplay(connectionData);
+            return connectionData;
+            
+        } catch (error) {
+            console.debug('⚠️ Error fetching connection status:', error);
+            this.updateConnectionDisplay({ is_connected: false, connection_type: 'error' });
+        }
+        
+        return null;
+    }
+
+    updateConnectionDisplay(connection) {
+        const statusElement = document.getElementById('connection-status');
+        const typeElement = document.getElementById('connection-type-badge');
+        
+        if (connection.is_connected) {
+            if (statusElement) {
+                statusElement.className = 'flex items-center px-3 py-1.5 rounded-full glass border border-green-500/30';
+                statusElement.innerHTML = `
+                    <div class="w-2 h-2 bg-green-500 rounded-full mr-2"></div>
+                    <i data-lucide="wifi" class="w-4 h-4 mr-2 text-green-400"></i>
+                    <span class="text-green-400 font-medium text-sm">Connected to MT5</span>
+                `;
+            }
+            
+            if (typeElement) {
+                typeElement.className = 'px-3 py-1 rounded-full text-xs font-medium bg-green-500/20 text-green-400';
+                typeElement.textContent = connection.connection_type.toUpperCase();
+            }
+            
+            // Update account info
+            if (connection.account) {
+                this.updateElement('mt5-account', connection.account.toString());
+                this.updateElement('mt5-server', connection.server || 'Unknown');
+                this.updateElement('mt5-connection-status', 'Connected');
+                
+                if (connection.balance !== undefined) {
+                    this.updateElement('account-balance', `$${connection.balance.toFixed(2)}`);
+                }
+                if (connection.equity !== undefined) {
+                    this.updateElement('account-equity', `$${connection.equity.toFixed(2)}`);
+                }
+                if (connection.free_margin !== undefined) {
+                    this.updateElement('account-free-margin', `$${connection.free_margin.toFixed(2)}`);
+                }
+                if (connection.margin_level !== undefined) {
+                    this.updateElement('margin-level-percent', `${connection.margin_level.toFixed(1)}%`);
+                    this.updateProgressBar('margin-level-bar', Math.min(connection.margin_level, 100));
+                }
+            }
+            
+            this.updateElement('mode-indicator', 'MT5 Live');
+            
+        } else {
+            if (statusElement) {
+                statusElement.className = 'flex items-center px-3 py-1.5 rounded-full glass border border-red-500/30 connection-pulse';
+                statusElement.innerHTML = `
+                    <div class="w-2 h-2 bg-red-500 rounded-full mr-2 animate-pulse"></div>
+                    <i data-lucide="wifi-off" class="w-4 h-4 mr-2 text-red-400"></i>
+                    <span class="text-red-400 font-medium text-sm">MT5 Disconnected</span>
+                `;
+            }
+            
+            if (typeElement) {
+                typeElement.className = 'px-3 py-1 rounded-full text-xs font-medium bg-red-500/20 text-red-400';
+                typeElement.textContent = 'DISCONNECTED';
+            }
+            
+            this.updateElement('mode-indicator', 'Disconnected');
+        }
+        
+        // Update last update time
+        this.updateElement('mt5-last-update', new Date().toLocaleTimeString());
+        
+        // Recreate icons
+        lucide.createIcons();
+    }
+
+    async fetchAccountData() {
+        try {
+            const response = await fetch('/api/account-summary');
+            if (!response.ok) return;
+            
+            const accountData = await response.json();
+            
+            if (accountData.account) {
+                this.updateElement('open-positions', accountData.trading?.open_positions || 0);
+                this.updateElement('pending-orders', accountData.trading?.pending_orders || 0);
+                
+                const dailyPnl = accountData.trading?.daily_pnl || 0;
+                const pnlElement = document.getElementById('daily-pnl');
+                if (pnlElement) {
+                    pnlElement.textContent = `${dailyPnl >= 0 ? '+' : ''}$${dailyPnl.toFixed(2)}`;
+                    pnlElement.className = `text-2xl font-bold ${dailyPnl >= 0 ? 'text-primary-500' : 'text-red-500'}`;
+                }
+            }
+        } catch (error) {
+            console.debug('⚠️ Error fetching account data:', error);
+        }
+    }
+
+    updateElement(id, value) {
+        const element = document.getElementById(id);
+        if (element) {
+            element.textContent = value;
+        }
+    }
+
+    initializeChart() {
+        const ctx = document.getElementById('price-chart');
+        if (!ctx) return;
+        
+        this.chart = new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Price',
+                    data: [],
+                    borderColor: '#10b981',
+                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                    borderWidth: 2,
+                    fill: true,
+                    tension: 0.1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    legend: {
+                        display: false
+                    }
+                },
+                scales: {
+                    x: {
+                        display: true,
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.1)'
+                        },
+                        ticks: {
+                            color: '#9ca3af'
+                        }
+                    },
+                    y: {
+                        display: true,
+                        grid: {
+                            color: 'rgba(255, 255, 255, 0.1)'
+                        },
+                        ticks: {
+                            color: '#9ca3af'
+                        }
+                    }
+                },
+                interaction: {
+                    intersect: false,
+                    mode: 'index'
+                }
+            }
+        });
+    }
+
+    updateChart(marketData) {
+        if (!this.chart || !marketData || marketData.length === 0) return;
+        
+        const labels = marketData.map(item => {
+            const date = new Date(item.timestamp);
+            return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        });
+        
+        const prices = marketData.map(item => item.close);
+        
+        this.chart.data.labels = labels;
+        this.chart.data.datasets[0].data = prices;
+        this.chart.update('none');
+    }
+
+    initWebSocket() {
+        try {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/ws`;
+            
+            this.ws = new WebSocket(wsUrl);
+            
+            this.ws.onopen = () => {
+                console.log('✅ WebSocket connected');
+                this.isConnected = true;
+                
+                // Subscribe to events
+                this.ws.send(JSON.stringify({
+                    type: 'subscribe',
+                    events: ['tick', 'connection', 'account_info', 'positions', 'orders', 'supertrend_update']
+                }));
+            };
+            
+            this.ws.onmessage = (event) => {
+                try {
+                    const message = JSON.parse(event.data);
+                    this.handleWebSocketMessage(message);
+                } catch (error) {
+                    console.error('Error parsing WebSocket message:', error);
+                }
+            };
+            
+            this.ws.onclose = () => {
+                console.log('❌ WebSocket disconnected');
+                this.isConnected = false;
+                
+                // Attempt to reconnect after 5 seconds
+                setTimeout(() => {
+                    if (!this.isConnected) {
+                        this.initWebSocket();
+                    }
+                }, 5000);
+            };
+            
+            this.ws.onerror = (error) => {
+                console.error('WebSocket error:', error);
+            };
+            
+        } catch (error) {
+            console.error('Error initializing WebSocket:', error);
+        }
+    }
+
+    handleWebSocketMessage(message) {
+        switch (message.type) {
+            case 'tick':
+                if (message.data.symbol === this.currentSymbol) {
+                    this.updateTickDisplay(message.data);
+                }
+                break;
+                
+            case 'connection':
+                this.updateConnectionDisplay(message.data);
+                break;
+                
+            case 'account_info':
+                // Handle account info updates
+                break;
+                
+            case 'supertrend_update':
+                if (message.data.symbol === this.currentSymbol) {
+                    this.updateSuperTrendDisplay(message.data);
+                }
+                break;
+                
+            default:
+                console.debug('Unknown WebSocket message type:', message.type);
+        }
+    }
+
+    // Control methods
     togglePlayPause() {
         this.isRunning = !this.isRunning;
         const btn = document.getElementById('play-pause-btn');
         if (btn) {
-            const icon = btn.querySelector('i');
-            const text = btn.querySelector('span');
-            
             if (this.isRunning) {
-                if (icon) icon.setAttribute('data-lucide', 'pause');
-                if (text) text.textContent = 'Pause';
-                btn.className = 'flex items-center px-4 py-2 rounded-lg btn-premium text-white font-medium text-sm transition-all duration-300';
+                btn.innerHTML = '<i data-lucide="pause" class="w-4 h-4 mr-1"></i><span>Pause</span>';
             } else {
-                if (icon) icon.setAttribute('data-lucide', 'play');
-                if (text) text.textContent = 'Play';
-                btn.className = 'flex items-center px-4 py-2 rounded-lg bg-gray-600 text-white font-medium text-sm transition-all duration-300';
+                btn.innerHTML = '<i data-lucide="play" class="w-4 h-4 mr-1"></i><span>Resume</span>';
             }
-            
-            if (window.lucide) {
-                window.lucide.createIcons();
-            }
+            lucide.createIcons();
         }
+        
+        this.updateElement('status-indicator', this.isRunning ? 'Live' : 'Paused');
     }
-    
+
     resetDashboard() {
         console.log('🔄 Resetting dashboard...');
         
-        // Clear chart data
-        this.chartData = [];
-        if (this.chart) {
-            this.chart.data.datasets[0].data = [];
-            this.chart.update('none');
-        }
+        // Clear cache
+        this.cache = {
+            pairs: null,
+            connection: null,
+            marketData: new Map(),
+            tickData: new Map()
+        };
         
-        // Clear caches
-        this.priceFormatCache.clear();
-        this.updateTimes = [];
+        // Reset last updates
+        this.lastUpdates = {
+            tick: 0,
+            connection: 0,
+            pairs: 0,
+            market: 0
+        };
         
-        // Reset pairs loading state
-        this.pairsLoaded = false;
-        this.pairsRetryCount = 0;
+        // Clear chart
+        this.clearChartData();
         
-        // Reset to default pair
-        this.selectPair('EURUSD');
+        // Restart data fetching
+        this.startDataFetching();
         
-        // Reload all data
-        this.loadInitialData();
+        console.log('✅ Dashboard reset complete');
     }
-    
+
     toggleSettings() {
         const panel = document.getElementById('settings-panel');
         if (panel) {
             panel.classList.toggle('hidden');
         }
     }
-    
+
+    hideSettings() {
+        const panel = document.getElementById('settings-panel');
+        if (panel) {
+            panel.classList.add('hidden');
+        }
+    }
+
+    async applySettings() {
+        const atrPeriod = document.getElementById('atr-period').value;
+        const multiplier = document.getElementById('multiplier').value;
+        const rsiPeriod = document.getElementById('rsi-period').value;
+        const useRsiFilter = document.getElementById('use-rsi-filter').checked;
+        
+        try {
+            const response = await fetch('/api/config', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    periods: parseInt(atrPeriod),
+                    multiplier: parseFloat(multiplier),
+                    rsi_length: parseInt(rsiPeriod),
+                    use_rsi_filter: useRsiFilter
+                })
+            });
+            
+            if (response.ok) {
+                console.log('✅ Settings applied successfully');
+                this.hideSettings();
+                
+                // Recalculate SuperTrend with new settings
+                await this.calculateSuperTrend();
+            }
+        } catch (error) {
+            console.error('❌ Error applying settings:', error);
+        }
+    }
+
     showConnectionTest() {
         const modal = document.getElementById('connection-test-modal');
         if (modal) {
             modal.classList.remove('hidden');
         }
     }
-    
+
     hideConnectionTest() {
         const modal = document.getElementById('connection-test-modal');
         if (modal) {
             modal.classList.add('hidden');
         }
     }
-    
+
     async runConnectionTest() {
-        const resultsElement = document.getElementById('test-results');
-        if (!resultsElement) return;
+        const resultsDiv = document.getElementById('test-results');
+        if (!resultsDiv) return;
         
-        resultsElement.innerHTML = `
+        resultsDiv.innerHTML = `
             <div class="text-center py-6">
                 <div class="animate-spin w-6 h-6 border-2 border-primary-500 border-t-transparent rounded-full mx-auto mb-3"></div>
                 <p class="text-gray-400 text-sm">Testing MT5 connection...</p>
@@ -1269,141 +1152,79 @@ class SuperTrendDashboard {
         `;
         
         try {
-            const response = await fetch('/api/test-connection', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
-            });
+            const response = await fetch('/api/test-connection', { method: 'POST' });
+            const result = await response.json();
             
-            if (response.ok) {
-                const data = await response.json();
-                this.displayTestResults(data);
-            } else {
-                throw new Error('Test request failed');
-            }
-        } catch (error) {
-            resultsElement.innerHTML = `
-                <div class="text-center py-6">
-                    <div class="text-red-500 mb-3">❌ Test Failed</div>
-                    <p class="text-gray-400 text-sm">${error.message}</p>
-                </div>
-            `;
-        }
-    }
-    
-    displayTestResults(data) {
-        const resultsElement = document.getElementById('test-results');
-        if (!resultsElement || !data.results) return;
-        
-        const results = Object.entries(data.results).map(([key, result]) => {
-            const icon = result.success ? '✅' : '❌';
-            const color = result.success ? 'text-green-400' : 'text-red-400';
-            return `
-                <div class="flex items-center justify-between p-3 glass rounded-lg">
-                    <span class="text-gray-300 text-sm">${key.replace(/_/g, ' ').toUpperCase()}</span>
-                    <div class="flex items-center space-x-2">
-                        <span class="${color} text-sm">${icon}</span>
-                        <span class="text-xs text-gray-400">${result.message}</span>
+            let html = '<div class="space-y-3">';
+            
+            for (const [test, data] of Object.entries(result.results)) {
+                const icon = data.success ? 'check-circle' : 'x-circle';
+                const color = data.success ? 'text-green-400' : 'text-red-400';
+                
+                html += `
+                    <div class="flex items-start space-x-3">
+                        <i data-lucide="${icon}" class="w-5 h-5 ${color} mt-0.5"></i>
+                        <div>
+                            <div class="font-medium text-white">${test.replace(/_/g, ' ').toUpperCase()}</div>
+                            <div class="text-sm text-gray-400">${data.message}</div>
+                        </div>
                     </div>
+                `;
+            }
+            
+            html += '</div>';
+            resultsDiv.innerHTML = html;
+            
+        } catch (error) {
+            resultsDiv.innerHTML = `
+                <div class="text-center text-red-400 py-6">
+                    <i data-lucide="alert-circle" class="w-8 h-8 mx-auto mb-2"></i>
+                    <p class="font-medium">Connection test failed</p>
+                    <p class="text-sm">${error.message}</p>
                 </div>
             `;
-        }).join('');
+        }
         
-        resultsElement.innerHTML = results;
+        lucide.createIcons();
     }
-    
-    filterPairs(searchTerm) {
-        const pairItems = document.querySelectorAll('.pair-item');
-        const term = searchTerm.toLowerCase();
+
+    async refreshConnection() {
+        console.log('🔄 Refreshing MT5 connection...');
         
-        pairItems.forEach(item => {
-            const symbol = item.dataset.symbol.toLowerCase();
-            const name = item.textContent.toLowerCase();
+        try {
+            const response = await fetch('/api/reconnect', { method: 'POST' });
+            const result = await response.json();
             
-            if (symbol.includes(term) || name.includes(term)) {
-                item.style.display = 'block';
-            } else {
-                item.style.display = 'none';
-            }
-        });
+            console.log('✅ Connection refresh result:', result);
+            
+            // Refresh all data
+            await this.startDataFetching();
+            
+        } catch (error) {
+            console.error('❌ Error refreshing connection:', error);
+        }
     }
-    
-    filterByCategory(category) {
-        const pairItems = document.querySelectorAll('.pair-item');
-        const filterBtns = document.querySelectorAll('.category-filter');
-        
-        // Update filter button states
-        filterBtns.forEach(btn => {
-            if (btn.dataset.category === category) {
-                btn.classList.add('active', 'bg-primary-500', 'text-white');
-                btn.classList.remove('glass', 'text-gray-300');
-            } else {
-                btn.classList.remove('active', 'bg-primary-500', 'text-white');
-                btn.classList.add('glass', 'text-gray-300');
-            }
-        });
-        
-        // Filter pairs
-        pairItems.forEach(item => {
-            const categoryBadge = item.querySelector('[class*="category-"]');
-            if (category === 'all' || (categoryBadge && categoryBadge.classList.contains(`category-${category}`))) {
-                item.style.display = 'block';
-            } else {
-                item.style.display = 'none';
-            }
-        });
-    }
-    
-    cleanup() {
-        // Clear all intervals
-        if (this.tickPollingInterval) {
-            clearInterval(this.tickPollingInterval);
+
+    clearAlerts() {
+        const alertsContent = document.getElementById('alerts-content');
+        if (alertsContent) {
+            alertsContent.innerHTML = `
+                <div class="text-center text-gray-400 py-6">
+                    <i data-lucide="bell" class="w-8 h-8 mx-auto mb-2 opacity-50"></i>
+                    <p class="font-medium text-sm">No signals yet</p>
+                    <p class="text-xs">Trading signals will appear here</p>
+                </div>
+            `;
+            lucide.createIcons();
         }
-        if (this.dataPollingInterval) {
-            clearInterval(this.dataPollingInterval);
-        }
-        if (this.supertrendPollingInterval) {
-            clearInterval(this.supertrendPollingInterval);
-        }
-        if (this.pairsPollingInterval) {
-            clearInterval(this.pairsPollingInterval);
-        }
-        if (this.wsReconnectTimer) {
-            clearTimeout(this.wsReconnectTimer);
-        }
-        
-        // Close WebSocket
-        if (this.ws) {
-            this.ws.close();
-        }
-        
-        console.log('🧹 Dashboard cleaned up');
     }
 }
 
 // Initialize dashboard when DOM is loaded
+let dashboard;
 document.addEventListener('DOMContentLoaded', () => {
-    console.log('🚀 SuperTrend Pro MT5 Dashboard - Fixed Pairs Display & Live Updates');
-    window.dashboard = new SuperTrendDashboard();
+    dashboard = new SuperTrendDashboard();
 });
 
-// Handle page visibility changes
-document.addEventListener('visibilitychange', () => {
-    if (window.dashboard) {
-        if (document.hidden) {
-            console.log('📱 Page hidden - reducing update frequency');
-            window.dashboard.updateInterval = 2000;
-            window.dashboard.fastTickInterval = 1000;
-        } else {
-            console.log('📱 Page visible - resuming fast updates');
-            window.dashboard.updateInterval = 1000;
-            window.dashboard.fastTickInterval = 500;
-        }
-    }
-});
-
-// Cleanup on page unload
-window.addEventListener('beforeunload', () => {
-    if (window.dashboard) {
-        window.dashboard.cleanup();
-    }
-});
+// Make dashboard globally accessible for onclick handlers
+window.dashboard = dashboard;
